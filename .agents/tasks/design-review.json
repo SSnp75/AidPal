@@ -1,0 +1,71 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "HIGH",
+      "title": "media INSERT policy uses a direct posts subselect that the mandatory §4.3 recursion rule forbids",
+      "location": "§4.4 media INSERT bullet; conflicts with §4.3 cross-table rule",
+      "problem": "The media INSERT predicate is public.is_group_member((select group_id from posts where id = post_id)), a direct scalar subselect against posts inside a media policy. §4.3 explicitly forbids any direct posts subselect in a media/comments/likes policy because it re-triggers posts RLS under the invoker. The design contradicts its own load-bearing rule in the one place it matters most.",
+      "fix": "Add a SECURITY DEFINER helper can_write_post_media(pid) that joins posts+group_members as owner, and use it in the media INSERT WITH CHECK (uploader_id = auth.uid() and public.can_write_post_media(post_id)); OR simplify to uploader_id = auth.uid() and public.can_read_post(post_id) to mirror comments/likes. Either way remove the direct posts subselect and state one predicate."
+    },
+    {
+      "id": 2,
+      "severity": "MEDIUM",
+      "title": "Storage media bucket creation in schema.sql is non-idempotent and the running role/connection is unspecified",
+      "location": "§4.5 (storage.buckets insert); README step 4",
+      "problem": "The schema is documented as a repeatable, self-contained, run-verbatim file, but the plain insert into storage.buckets fails with a unique-violation on re-run and the storage policy creates are not guarded, while every other object uses create-if-not-exists/create-or-replace. The role allowed to write storage.* is also never stated.",
+      "fix": "State schema.sql runs in the Supabase dashboard SQL editor (role postgres); make the bucket insert idempotent with on conflict (id) do nothing; and guard the storage create policy statements (drop policy if exists first, or document single-run)."
+    },
+    {
+      "id": 3,
+      "severity": "MEDIUM",
+      "title": "createPost membership enforcement specified two ways; upload happens before the posts-INSERT RLS rejection",
+      "location": "§4.4 posts INSERT (requires is_group_member) vs §10 createPost flow (steps 1-5, no membership step, upload at step 2)",
+      "problem": "§4.4 requires membership for a posts INSERT, but the §10 flow uploads the image (step 2) before inserting posts (step 3), so a non-member uploads bytes that RLS then rejects, relying on the compensating delete. The non-member case is not called out and risks orphaned objects / wasted uploads.",
+      "fix": "Add an explicit step 0 to §10: verify is_group_member(groupId) and return 'You must join this group to post.' before any Storage upload, so the orphan-cleanup path is exceptional rather than the normal non-member path."
+    },
+    {
+      "id": 4,
+      "severity": "MEDIUM",
+      "title": "signUp success contract has two behaviors with no stated discriminator",
+      "location": "§6.1 signUp row vs §6 Registration steps 3-4",
+      "problem": "signUp either returns {ok:true} ('check your email') or redirects to /profile/edit depending on whether email confirmation is enabled, but the design never says how the action decides at runtime. The SDK signals this via data.session (null when confirmation required), which is not referenced.",
+      "fix": "Specify: after signUp, if data.session is non-null (confirmation off) call ensureProfile() and redirect('/profile/edit'); if null (confirmation on) return {ok:true} and show the 'check your email' notice. Note ensureProfile cannot run in the confirmation-required branch (no session yet)."
+    },
+    {
+      "id": 5,
+      "severity": "MEDIUM",
+      "title": "ensureProfile display-name fallback from email local-part can violate the 1-60 CHECK and fail login",
+      "location": "§6 Profile-row creation; §4.1 profiles.display_name (1-60 CHECK); §9 displayName (1-60)",
+      "problem": "The fallback display_name is derived from the email local-part, which can be up to 64 chars (RFC 5321) and exceed the 60-char CHECK. A long local-part makes the idempotent insert fail the CHECK, turning a routine login into the fatal-to-action /login?error=auth path.",
+      "fix": "Specify a CHECK-safe fallback: left(split_part(email,'@',1),60); if empty after trimming use a constant like 'New user'. State it as '1-60 chars, CHECK-safe' at the ensureProfile definition."
+    },
+    {
+      "id": 6,
+      "severity": "NIT",
+      "title": "Vitest + tests/ is implementer infrastructure the brief did not request; confirm intent",
+      "location": "§2, §3, §12",
+      "problem": "The thin-slice scope list does not mention a test runner. Pulling validators/safeNextPath/storage-path into pure unit-tested functions is sound and not harmful scope creep, but it adds a vitest dependency and a tests/ surface the brief did not ask for.",
+      "fix": "Keep it, but add one sentence in §12 clarifying Vitest is implementer infrastructure adopted to satisfy verification, not a product feature, so it is not mistaken for scope drift."
+    },
+    {
+      "id": 7,
+      "severity": "NIT",
+      "title": "avatar_url max length enforced in validator but not as a DB CHECK",
+      "location": "§4.1 profiles.avatar_url (no length CHECK) vs §9 avatarUrl (<=2048)",
+      "problem": "The validator caps avatarUrl at 2048 but the column has no matching CHECK, so the design's own 'DB CHECK is the final backstop' principle is not upheld for this field, unlike the deliberately-tightened media.mime_type.",
+      "fix": "Add CHECK (char_length(avatar_url) <= 2048) to profiles.avatar_url in §4.1, or explicitly document it as an app-only rule and why. Prefer the CHECK for consistency."
+    },
+    {
+      "id": 8,
+      "severity": "NIT",
+      "title": "README 'set Supabase min password length <= 8' overstates the setting's importance",
+      "location": "§9 password note; README step 3(a)",
+      "problem": "The app enforces min 8 server-side before calling signUp, so the Supabase Auth minimum is irrelevant to the happy path. The README wording implies a specific Supabase setting is required for correctness, which it is not.",
+      "fix": "Reword: the app enforces min 8 before calling Supabase, so the Supabase minimum only matters if the app is bypassed; leaving the default (6) is fine, optionally set 8 to keep them in sync."
+    }
+  ],
+  "counts": { "high": 1, "medium": 4, "nit": 3, "blocking": 5 },
+  "reviewDoc": "c:\\Projects\\AidPal\\.agents\\tasks\\design-review.md"
+}
