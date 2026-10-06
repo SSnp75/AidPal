@@ -59,9 +59,10 @@ create table if not exists public.comments (
   created_at timestamptz not null default now()
 );
 
-create table if not exists public.likes (
+create table if not exists public.reactions (
   post_id    uuid not null references public.posts(id) on delete cascade,
   user_id    uuid not null references public.profiles(id) on delete cascade,
+  type       text not null check (type in ('like','love','dislike')),
   created_at timestamptz not null default now(),
   primary key (post_id, user_id)
 );
@@ -76,7 +77,7 @@ alter table public.group_members enable row level security;
 alter table public.posts         enable row level security;
 alter table public.media         enable row level security;
 alter table public.comments      enable row level security;
-alter table public.likes         enable row level security;
+alter table public.reactions     enable row level security;
 
 -- ═══════════════════════════════════════════════
 -- Helper functions (SECURITY DEFINER)
@@ -274,19 +275,28 @@ create policy comments_update on public.comments
 create policy comments_delete on public.comments
   for delete to authenticated using (author_id = auth.uid());
 
--- ── likes ──
-drop policy if exists likes_select on public.likes;
-drop policy if exists likes_insert on public.likes;
-drop policy if exists likes_delete on public.likes;
+-- ── reactions ──
+-- One row per (post, user); `type` is the enforced reaction kind.
+-- Mirrors the former likes_* policies, plus an UPDATE policy because
+-- switching reaction type mutates the existing row.
+drop policy if exists reactions_select on public.reactions;
+drop policy if exists reactions_insert on public.reactions;
+drop policy if exists reactions_update on public.reactions;
+drop policy if exists reactions_delete on public.reactions;
 
-create policy likes_select on public.likes
+create policy reactions_select on public.reactions
   for select to anon, authenticated using (public.can_read_post(post_id));
 
-create policy likes_insert on public.likes
+create policy reactions_insert on public.reactions
   for insert to authenticated
   with check (user_id = auth.uid() and public.can_read_post(post_id));
 
-create policy likes_delete on public.likes
+create policy reactions_update on public.reactions
+  for update to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid() and public.can_read_post(post_id));
+
+create policy reactions_delete on public.reactions
   for delete to authenticated using (user_id = auth.uid());
 
 -- ═══════════════════════════════════════════════
@@ -313,3 +323,73 @@ create policy media_objects_update on storage.objects
 
 create policy media_objects_delete on storage.objects
   for delete to authenticated using (bucket_id = 'media' and owner = auth.uid());
+
+-- ============================================================
+-- ONE-TIME MIGRATION: likes → reactions
+-- Run ONCE in the Supabase SQL editor against a live DB that
+-- still has public.likes. Safe to run on a populated database.
+-- This is NOT part of the re-runnable canonical schema above —
+-- a fresh DB built from the schema never creates a likes table,
+-- so this block only matters for upgrading an existing live DB.
+-- Both the backfill and the drop are guarded by to_regclass so a
+-- re-run after likes is already gone is a true no-op.
+-- ============================================================
+
+-- 1. Create reactions (no-op if the schema above already created it).
+create table if not exists public.reactions (
+  post_id    uuid not null references public.posts(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  type       text not null check (type in ('like','love','dislike')),
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+alter table public.reactions enable row level security;
+
+-- 2. RLS policies (drop-then-create = safe to re-run).
+drop policy if exists reactions_select on public.reactions;
+drop policy if exists reactions_insert on public.reactions;
+drop policy if exists reactions_update on public.reactions;
+drop policy if exists reactions_delete on public.reactions;
+
+create policy reactions_select on public.reactions
+  for select to anon, authenticated using (public.can_read_post(post_id));
+create policy reactions_insert on public.reactions
+  for insert to authenticated
+  with check (user_id = auth.uid() and public.can_read_post(post_id));
+create policy reactions_update on public.reactions
+  for update to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid() and public.can_read_post(post_id));
+create policy reactions_delete on public.reactions
+  for delete to authenticated using (user_id = auth.uid());
+
+-- 3. Backfill: copy every existing like as type='like'.
+--    on conflict do nothing makes a second run a no-op (no dupes, no error).
+--    Guarded by to_regclass so re-running AFTER likes is dropped is harmless.
+do $$
+begin
+  if to_regclass('public.likes') is not null then
+    insert into public.reactions (post_id, user_id, type, created_at)
+    select l.post_id, l.user_id, 'like', l.created_at
+    from public.likes l
+    on conflict (post_id, user_id) do nothing;
+  end if;
+end $$;
+
+-- 4. Drop old likes policies, then the table (idempotent).
+--    Guarded by to_regclass so this whole step is a no-op once likes is gone.
+--    NOTE: `drop policy if exists ... on public.likes` does NOT self-guard —
+--    IF EXISTS only suppresses "policy not found", not "relation not found".
+--    If the likes table is already dropped, those statements raise
+--    `ERROR: relation "public.likes" does not exist`, so the table-existence
+--    guard below is what makes step 4 safe to re-run.
+do $$
+begin
+  if to_regclass('public.likes') is not null then
+    drop policy if exists likes_select on public.likes;
+    drop policy if exists likes_insert on public.likes;
+    drop policy if exists likes_delete on public.likes;
+    drop table public.likes;
+  end if;
+end $$;

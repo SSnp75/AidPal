@@ -12,6 +12,7 @@ import {
   isUUID,
   safeNextPath,
   coerceIsPrivate,
+  isReactionType,
 } from "@/lib/validation";
 import { buildMediaKey } from "@/lib/storage-path";
 
@@ -169,6 +170,24 @@ describe("safeNextPath", () => {
   });
   it("blocks empty", () => {
     expect(safeNextPath("")).toBe("/profile");
+  });
+});
+
+/* ── isReactionType ── */
+describe("isReactionType", () => {
+  it("accepts the three allowed types", () => {
+    expect(isReactionType("like")).toBe(true);
+    expect(isReactionType("love")).toBe(true);
+    expect(isReactionType("dislike")).toBe(true);
+  });
+  it("rejects other strings", () => {
+    expect(isReactionType("repost")).toBe(false);
+    expect(isReactionType("")).toBe(false);
+  });
+  it("rejects non-strings", () => {
+    expect(isReactionType(null)).toBe(false);
+    expect(isReactionType(1)).toBe(false);
+    expect(isReactionType({})).toBe(false);
   });
 });
 

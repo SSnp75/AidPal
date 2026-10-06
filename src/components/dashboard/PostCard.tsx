@@ -1,4 +1,7 @@
+import Link from "next/link";
 import Avatar from "./Avatar";
+import PostBody from "@/components/PostBody";
+import ReactionBar from "@/components/ReactionBar";
 import type { SamplePost } from "@/lib/sampleFeed";
 
 const engagementBtn =
@@ -30,10 +33,11 @@ export default function PostCard({ post }: { post: SamplePost }) {
         </button>
       </div>
 
-      {/* Body */}
-      <p className="mt-3 whitespace-pre-wrap text-text-primary leading-relaxed">
-        {post.body}
-      </p>
+      {/* Body — URLs rendered as clickable links */}
+      <PostBody
+        text={post.body}
+        className="mt-3 whitespace-pre-wrap text-text-primary leading-relaxed"
+      />
 
       {/* Hashtags */}
       {post.hashtags.length > 0 && (
@@ -51,18 +55,30 @@ export default function PostCard({ post }: { post: SamplePost }) {
 
       {/* Engagement row */}
       <div className="mt-4 flex items-center gap-2 border-t border-border pt-3">
-        <button type="button" disabled aria-label={`Like, ${post.likes} likes`} className={engagementBtn}>
-          <span aria-hidden="true">❤</span> {post.likes}
-        </button>
-        <button type="button" disabled aria-label={`Comment, ${post.comments} comments`} className={engagementBtn}>
-          <span aria-hidden="true">💬</span> {post.comments}
-        </button>
-        <button type="button" disabled aria-label={`Repost, ${post.reposts} reposts`} className={engagementBtn}>
-          <span aria-hidden="true">🔁</span> {post.reposts}
-        </button>
-        <button type="button" disabled aria-label="Bookmark" className={`${engagementBtn} ml-auto`}>
-          <span aria-hidden="true">🔖</span>
-        </button>
+        <ReactionBar
+          postId={post.id}
+          initialCounts={post.reactions}
+          initialMine={post.myReaction}
+          disabled={!post.isReal}
+        />
+        {post.isReal && post.groupId ? (
+          <Link
+            href={`/groups/${post.groupId}`}
+            aria-label={`Comment, ${post.comments} comments`}
+            className={engagementBtn}
+          >
+            <span aria-hidden="true">💬</span> {post.comments}
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled
+            aria-label={`Comment, ${post.comments} comments`}
+            className={engagementBtn}
+          >
+            <span aria-hidden="true">💬</span> {post.comments}
+          </button>
+        )}
       </div>
     </article>
   );

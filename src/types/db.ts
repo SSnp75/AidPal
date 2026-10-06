@@ -50,8 +50,11 @@ export interface Comment {
   created_at: string;
 }
 
-export interface Like {
+export type ReactionType = "like" | "love" | "dislike";
+
+export interface Reaction {
   post_id: string;
   user_id: string;
+  type: ReactionType;
   created_at: string;
 }

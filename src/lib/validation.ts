@@ -1,5 +1,7 @@
 /** Pure validation helpers — no network, no side effects. */
 
+import type { ReactionType } from "@/types/db";
+
 export type ValidationResult =
   | { ok: true }
   | { ok: false; error: string };
@@ -123,6 +125,17 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export function isUUID(raw: unknown): boolean {
   return typeof raw === "string" && UUID_RE.test(raw);
+}
+
+/**
+ * Allowed reaction types. Typed as `readonly ReactionType[]` so the literal
+ * list is compiler-checked against the canonical union in `@/types/db` —
+ * the runtime list and the type can never silently diverge.
+ */
+export const REACTION_TYPES: readonly ReactionType[] = ["like", "love", "dislike"];
+
+export function isReactionType(raw: unknown): raw is ReactionType {
+  return typeof raw === "string" && (REACTION_TYPES as readonly string[]).includes(raw);
 }
 
 /**

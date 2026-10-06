@@ -1,0 +1,34 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    {
+      "id": 1,
+      "severity": "NIT",
+      "title": "addComment pattern claim slightly inaccurate — revalidatePath(\"/\") is new",
+      "where": "setReaction §, step 7 / revalidatePath subsection",
+      "fix": "Reword 'This mirrors the existing addComment pattern' to note that setReaction extends it by also calling revalidatePath(\"/\"), which addComment does not do."
+    },
+    {
+      "id": 2,
+      "severity": "NIT",
+      "title": "PostCard needs a new next/link import for the comment Link",
+      "where": "Wiring — home feed PostCard section",
+      "fix": "Note that 'import Link from \"next/link\"' is a new import to add to PostCard.tsx (not currently present)."
+    },
+    {
+      "id": 4,
+      "severity": "NIT",
+      "title": "ReactionBar light-theme tokens will clash with the group page's dark card surfaces",
+      "where": "Wiring — group detail page, out-of-scope note",
+      "fix": "Acknowledge the visual mismatch as a known limitation; aligning the group page to the white theme is out of scope (NFR-6) and should be tracked as follow-up."
+    },
+    {
+      "id": 5,
+      "severity": "NIT",
+      "title": "Comment link targets the group page, not a specific post anchor",
+      "where": "Wiring — home feed PostCard, Comment control",
+      "fix": "None required — matches FR-18. Note as a possible future improvement (no post-detail route exists)."
+    }
+  ],
+  "reviewDoc": "c:\\Projects\\AidPal\\.agents\\tasks\\aidpal-reactions-2025\\design-review.md"
+}

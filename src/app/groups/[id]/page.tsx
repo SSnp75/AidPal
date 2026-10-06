@@ -4,9 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import SupabaseNotConfigured from "@/components/SupabaseNotConfigured";
 import MediaUploadForm from "@/components/MediaUploadForm";
 import CommentForm from "@/components/CommentForm";
-import LikeButton from "@/components/LikeButton";
+import ReactionBar from "@/components/ReactionBar";
 import JoinButton from "@/components/JoinButton";
-import type { Group, Post, Media, Comment, Profile } from "@/types/db";
+import PostBody from "@/components/PostBody";
+import type { Group, Post, Media, Comment, Profile, ReactionType } from "@/types/db";
 
 export default async function GroupDetailPage({
   params,
@@ -56,8 +57,8 @@ export default async function GroupDetailPage({
 
   const postIds = (posts ?? []).map((p) => p.id);
 
-  // Media, comments, likes, author profiles for these posts
-  const [mediaRes, commentsRes, likesRes, authorsRes] = await Promise.all([
+  // Media, comments, reactions, author profiles for these posts
+  const [mediaRes, commentsRes, reactionsRes, authorsRes] = await Promise.all([
     postIds.length
       ? supabase.from("media").select("*").in("post_id", postIds).returns<Media[]>()
       : Promise.resolve({ data: [] as Media[] }),
@@ -70,8 +71,14 @@ export default async function GroupDetailPage({
           .returns<Comment[]>()
       : Promise.resolve({ data: [] as Comment[] }),
     postIds.length
-      ? supabase.from("likes").select("post_id,user_id").in("post_id", postIds)
-      : Promise.resolve({ data: [] as { post_id: string; user_id: string }[] }),
+      ? supabase
+          .from("reactions")
+          .select("post_id,user_id,type")
+          .in("post_id", postIds)
+          .returns<{ post_id: string; user_id: string; type: ReactionType }[]>()
+      : Promise.resolve({
+          data: [] as { post_id: string; user_id: string; type: ReactionType }[],
+        }),
     (posts ?? []).length
       ? supabase
           .from("profiles")
@@ -94,12 +101,17 @@ export default async function GroupDetailPage({
     commentsByPost.set(c.post_id, arr);
   }
 
-  const likesByPost = new Map<string, { count: number; mine: boolean }>();
-  for (const l of likesRes.data ?? []) {
-    const cur = likesByPost.get(l.post_id) ?? { count: 0, mine: false };
-    cur.count += 1;
-    if (user && l.user_id === user.id) cur.mine = true;
-    likesByPost.set(l.post_id, cur);
+  const reactionsByPost = new Map<
+    string,
+    { counts: { like: number; love: number; dislike: number }; mine: ReactionType | null }
+  >();
+  for (const r of reactionsRes.data ?? []) {
+    const cur =
+      reactionsByPost.get(r.post_id) ??
+      { counts: { like: 0, love: 0, dislike: 0 }, mine: null };
+    cur.counts[r.type] += 1;
+    if (user && r.user_id === user.id) cur.mine = r.type;
+    reactionsByPost.set(r.post_id, cur);
   }
 
   const authorNames = new Map<string, string>();
@@ -152,8 +164,11 @@ export default async function GroupDetailPage({
               {posts.map((post) => {
                 const media = mediaByPost.get(post.id);
                 const comments = commentsByPost.get(post.id) ?? [];
-                const likeInfo =
-                  likesByPost.get(post.id) ?? { count: 0, mine: false };
+                const reactionInfo =
+                  reactionsByPost.get(post.id) ?? {
+                    counts: { like: 0, love: 0, dislike: 0 },
+                    mine: null,
+                  };
                 const authorName =
                   authorNames.get(post.author_id) ?? "Someone";
 
@@ -165,9 +180,7 @@ export default async function GroupDetailPage({
                     <p className="text-xs text-gray-500 mb-2">{authorName}</p>
 
                     {post.body && (
-                      <p className="text-gray-200 whitespace-pre-wrap mb-3">
-                        {post.body}
-                      </p>
+                      <PostBody text={post.body} className="text-gray-200 whitespace-pre-wrap mb-3" />
                     )}
 
                     {media && (
@@ -179,10 +192,10 @@ export default async function GroupDetailPage({
                     )}
 
                     <div className="flex items-center gap-3">
-                      <LikeButton
+                      <ReactionBar
                         postId={post.id}
-                        initialLiked={likeInfo.mine}
-                        initialCount={likeInfo.count}
+                        initialCounts={reactionInfo.counts}
+                        initialMine={reactionInfo.mine}
                       />
                     </div>
 

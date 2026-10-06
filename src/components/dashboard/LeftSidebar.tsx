@@ -85,7 +85,7 @@ export default function LeftSidebar({
       className="hidden flex-col gap-6 min-[992px]:flex"
     >
       {/* Profile card */}
-      <div className="rounded-2xl border border-border bg-card p-5 text-center">
+      <div className="rounded-2xl border border-side-border bg-side-card p-5 text-center">
         <div className="flex justify-center">
           <Avatar name={displayName} sizeClass="h-20 w-20 text-xl" />
         </div>
@@ -119,7 +119,7 @@ export default function LeftSidebar({
       {/* Navigation menu */}
       <nav
         aria-label="Primary"
-        className="rounded-2xl border border-border bg-card p-3"
+        className="rounded-2xl border border-side-border bg-side-card p-3"
       >
         <ul className="flex flex-col gap-1">
           <li>

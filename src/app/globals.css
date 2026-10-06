@@ -1,18 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  /* Dark social-dashboard palette */
-  --primary: #0a0e27; /* page background */
-  --secondary: #1a1f3a; /* raised surfaces */
-  --card-bg: #141829; /* cards */
-  --border: #2a2f4a;
-  --accent: #ff6b35; /* primary action / active */
-  --accent-light: #ff8c61; /* hover */
-  --text-primary: #ffffff;
-  --text-secondary: #b8c5d6;
-  --success: #4ecdc4;
+  /* Clean white / light theme — no bright colours */
+  --primary: #fbfcfe;        /* page background — faintest blue-white */
+  --secondary: #eef1f8;      /* raised surfaces / input bg */
+  --card-bg: #f5f7fd;         /* center cards — lighter blue than sides */
+  --border: #e4e9f3;
+  --accent: #4a5568;          /* primary action — muted slate */
+  --accent-light: #636e7f;    /* hover */
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b7280;
+  --success: #5b9a8b;
+  --side-card: #eef2fb;       /* faint blue for side columns */
+  --side-border: #d7e0f2;
 
-  /* App-wide background / foreground follow the new dark scheme */
+  /* Reaction tokens — muted, desaturated, eye-friendly (no bright/neon) */
+  --reaction-like:    #5b6b7f;  /* soft slate / blue-grey */
+  --reaction-love:    #a97e86;  /* muted rose / dusty-pink */
+  --reaction-dislike: #938a73;  /* muted amber / taupe */
+  --reaction-bg:      #eef2fb;  /* active chip bg — same faint-blue family */
+
   --background: var(--primary);
   --foreground: var(--text-primary);
 }
@@ -21,7 +28,6 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
-  /* Semantic palette tokens → generate utilities (bg-card, text-secondary, …) */
   --color-primary: var(--primary);
   --color-secondary: var(--secondary);
   --color-card: var(--card-bg);
@@ -31,6 +37,13 @@
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-success: var(--success);
+  --color-side-card: var(--side-card);
+  --color-side-border: var(--side-border);
+
+  --color-reaction-like: var(--reaction-like);
+  --color-reaction-love: var(--reaction-love);
+  --color-reaction-dislike: var(--reaction-dislike);
+  --color-reaction-bg: var(--reaction-bg);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -42,21 +55,7 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* Reusable avatar / brand gradient */
+/* Muted avatar gradient — soft grey-to-slate */
 .brand-gradient {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-/* Soft radial glow for the dashboard page background */
-.app-bg-glow {
-  background-image: radial-gradient(
-      circle at 20% 30%,
-      rgba(102, 126, 234, 0.1) 0%,
-      transparent 50%
-    ),
-    radial-gradient(
-      circle at 80% 70%,
-      rgba(255, 107, 53, 0.1) 0%,
-      transparent 50%
-    );
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
 }

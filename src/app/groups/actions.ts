@@ -14,8 +14,10 @@ import {
   ALLOWED_MIME_TYPES,
   MAX_FILE_SIZE,
 } from "@/lib/validation";
+import { isReactionType } from "@/lib/validation";
 import { buildMediaKey } from "@/lib/storage-path";
 import type { ActionResult } from "@/app/auth/actions";
+import type { ReactionType } from "@/types/db";
 
 /* ── createGroup ── */
 
@@ -291,15 +293,30 @@ export async function addComment(
   return { ok: true };
 }
 
-/* ── toggleLike ── */
+/* ── setReaction ── */
 
-export async function toggleLike({
+export type SetReactionResult =
+  | {
+      ok: true;
+      counts: { like: number; love: number; dislike: number };
+      mine: ReactionType | null;
+    }
+  | { ok: false; error: string };
+
+/**
+ * Upsert/toggle the current user's single reaction on a post.
+ *   - no existing row        → insert the given type
+ *   - existing, other type   → update the row to the new type
+ *   - existing, same type    → delete the row (toggle off)
+ * Returns post-write per-type counts and the viewer's reaction (or null).
+ */
+export async function setReaction({
   postId,
-  liked,
+  type,
 }: {
   postId: string;
-  liked: boolean;
-}): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  type: ReactionType;
+}): Promise<SetReactionResult> {
   if (!isSupabaseConfigured()) {
     return { ok: false, error: "Supabase is not configured. See README.md." };
   }
@@ -309,41 +326,98 @@ export async function toggleLike({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return { ok: false, error: "Sign in to like posts." };
+    return { ok: false, error: "Sign in to react to posts." };
   }
 
   if (!isUUID(postId)) {
     return { ok: false, error: "Not found or not allowed." };
   }
+  if (!isReactionType(type)) {
+    return { ok: false, error: "Invalid reaction." };
+  }
 
-  if (liked) {
+  // Read the viewer's current reaction on this post.
+  const { data: existing } = await supabase
+    .from("reactions")
+    .select("type")
+    .eq("post_id", postId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const current = (existing as { type: ReactionType } | null)?.type ?? null;
+
+  if (current === null) {
+    // Insert. A failing `with check` raises Postgres 42501 → non-null error.
     const { error } = await supabase
-      .from("likes")
-      .upsert(
-        { post_id: postId, user_id: user.id },
-        { onConflict: "post_id,user_id", ignoreDuplicates: true }
-      );
+      .from("reactions")
+      .insert({ post_id: postId, user_id: user.id, type });
     if (error) {
-      console.error("[toggleLike] insert", error.message);
-      return { ok: false, error: "Could not update like. Try again." };
+      console.error("[setReaction] insert", error.message);
+      return { ok: false, error: "Could not update reaction. Try again." };
+    }
+  } else if (current !== type) {
+    // Switch type. A denied UPDATE `using` filters to 0 rows WITHOUT error,
+    // so request the affected rows and assert a match.
+    const { data: updated, error } = await supabase
+      .from("reactions")
+      .update({ type })
+      .eq("post_id", postId)
+      .eq("user_id", user.id)
+      .select("post_id");
+    if (error) {
+      console.error("[setReaction] update", error.message);
+      return { ok: false, error: "Could not update reaction. Try again." };
+    }
+    if (!updated || updated.length === 0) {
+      return { ok: false, error: "Not found or not allowed." };
     }
   } else {
-    const { error } = await supabase
-      .from("likes")
+    // Toggle off (same type). A denied DELETE `using` also filters to 0 rows
+    // without error, so assert a match the same way.
+    const { data: deleted, error } = await supabase
+      .from("reactions")
       .delete()
       .eq("post_id", postId)
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .select("post_id");
     if (error) {
-      console.error("[toggleLike] delete", error.message);
-      return { ok: false, error: "Could not update like. Try again." };
+      console.error("[setReaction] delete", error.message);
+      return { ok: false, error: "Could not update reaction. Try again." };
+    }
+    if (!deleted || deleted.length === 0) {
+      return { ok: false, error: "Not found or not allowed." };
     }
   }
 
-  // Fresh count
-  const { count } = await supabase
-    .from("likes")
-    .select("*", { count: "exact", head: true })
-    .eq("post_id", postId);
+  // Re-read post-write state. `reactions_select` is post-level
+  // (can_read_post), so a viewer who can read the post sees every row on it —
+  // this single query yields complete per-type counts plus `mine`.
+  const { data: rows, error: readError } = await supabase
+    .from("reactions")
+    .select("type, user_id")
+    .eq("post_id", postId)
+    .returns<{ type: ReactionType; user_id: string }[]>();
 
-  return { ok: true, count: count ?? 0 };
+  if (readError) {
+    console.error("[setReaction] re-read", readError.message);
+    return { ok: false, error: "Could not update reaction. Try again." };
+  }
+
+  const counts = { like: 0, love: 0, dislike: 0 };
+  let mine: ReactionType | null = null;
+  for (const row of rows ?? []) {
+    counts[row.type] += 1;
+    if (row.user_id === user.id) mine = row.type;
+  }
+
+  // Refresh server-rendered surfaces (same pattern as addComment).
+  revalidatePath("/");
+  const { data: post } = await supabase
+    .from("posts")
+    .select("group_id")
+    .eq("id", postId)
+    .maybeSingle();
+  if (post) revalidatePath(`/groups/${(post as { group_id: string }).group_id}`);
+
+  return { ok: true, counts, mine };
 }

@@ -4,10 +4,12 @@ import type { SamplePost } from "@/lib/sampleFeed";
 
 export default function CenterFeed({
   composerName,
-  posts,
+  latestPosts,
+  trendingPosts,
 }: {
   composerName: string;
-  posts: SamplePost[];
+  latestPosts: SamplePost[];
+  trendingPosts: SamplePost[];
 }) {
   return (
     <section className="flex flex-col gap-5">
@@ -63,10 +65,37 @@ export default function CenterFeed({
         </div>
       </div>
 
-      {/* Feed */}
-      {posts.map((post) => (
-        <PostCard key={post.id} post={post} />
-      ))}
+      {/* Trending posts */}
+      {trendingPosts.length > 0 && (
+        <>
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true">🔥</span>
+            <h2 className="text-base font-semibold text-text-primary">
+              Trending Posts
+            </h2>
+          </div>
+          {trendingPosts.map((post) => (
+            <PostCard key={`trending-${post.id}`} post={post} />
+          ))}
+        </>
+      )}
+
+      {/* Latest / unread posts */}
+      <div className="flex items-center gap-2 pt-1">
+        <span aria-hidden="true">🆕</span>
+        <h2 className="text-base font-semibold text-text-primary">
+          Latest Posts
+        </h2>
+      </div>
+      {latestPosts.length === 0 ? (
+        <p className="rounded-2xl border border-border bg-card p-5 text-sm text-text-secondary">
+          No posts yet. Join a group and start sharing.
+        </p>
+      ) : (
+        latestPosts.map((post) => (
+          <PostCard key={`latest-${post.id}`} post={post} />
+        ))
+      )}
     </section>
   );
 }

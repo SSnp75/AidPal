@@ -10,9 +10,14 @@ export interface SamplePost {
   timeAgo: string;
   body: string;
   hashtags: string[];
-  likes: number;
+  likes: number; // retained: Like-count source for sample posts (see feed.ts)
   comments: number;
-  reposts: number;
+  reposts: number; // retained for type stability; no longer rendered
+  // ── reaction state ──
+  isReal: boolean; // true = real DB post with a usable id/groupId
+  groupId: string | null; // owning group for the comment link; null for placeholders
+  reactions: { like: number; love: number; dislike: number };
+  myReaction: "like" | "love" | "dislike" | null;
 }
 
 export interface TrendingItem {
@@ -36,6 +41,10 @@ export const samplePosts: SamplePost[] = [
     likes: 248,
     comments: 36,
     reposts: 42,
+    isReal: false,
+    groupId: null,
+    reactions: { like: 248, love: 0, dislike: 0 },
+    myReaction: null,
   },
   {
     id: "2",
@@ -47,6 +56,10 @@ export const samplePosts: SamplePost[] = [
     likes: 97,
     comments: 54,
     reposts: 18,
+    isReal: false,
+    groupId: null,
+    reactions: { like: 97, love: 0, dislike: 0 },
+    myReaction: null,
   },
   {
     id: "3",
@@ -58,6 +71,10 @@ export const samplePosts: SamplePost[] = [
     likes: 512,
     comments: 88,
     reposts: 134,
+    isReal: false,
+    groupId: null,
+    reactions: { like: 512, love: 0, dislike: 0 },
+    myReaction: null,
   },
 ];
 

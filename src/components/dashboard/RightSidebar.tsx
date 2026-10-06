@@ -1,20 +1,82 @@
+import Link from "next/link";
 import Avatar from "./Avatar";
 import type { TrendingItem, SuggestedPerson } from "@/lib/sampleFeed";
+
+interface GroupSummary {
+  id: string;
+  name: string;
+}
+
+function GroupList({
+  title,
+  groups,
+  emptyText,
+}: {
+  title: string;
+  groups: GroupSummary[];
+  emptyText: string;
+}) {
+  return (
+    <section className="rounded-2xl border border-side-border bg-side-card p-5">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+        {title}
+      </h2>
+      {groups.length === 0 ? (
+        <p className="text-xs text-text-secondary/70">{emptyText}</p>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {groups.map((g) => (
+            <li key={g.id}>
+              <Link
+                href={`/groups/${g.id}`}
+                className="block truncate rounded-lg px-2 py-1.5 text-sm text-text-primary transition-colors hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                title={g.name}
+              >
+                {g.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 export default function RightSidebar({
   trending,
   suggestions,
+  createdGroups,
+  memberGroups,
 }: {
   trending: TrendingItem[];
   suggestions: SuggestedPerson[];
+  createdGroups: GroupSummary[];
+  memberGroups: GroupSummary[];
 }) {
   return (
     <aside
-      aria-label="Trending and suggestions"
+      aria-label="Groups, trending and suggestions"
       className="hidden flex-col gap-6 min-[992px]:flex"
     >
+      {/* Group lists */}
+      <GroupList
+        title="Created Groups"
+        groups={createdGroups}
+        emptyText="You haven't created any groups yet."
+      />
+      <GroupList
+        title="Interested Groups"
+        groups={[]}
+        emptyText="No interested groups yet."
+      />
+      <GroupList
+        title="Member of Groups"
+        groups={memberGroups}
+        emptyText="You're not a member of any groups yet."
+      />
+
       {/* Trending Now */}
-      <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="rounded-2xl border border-side-border bg-side-card p-5">
         <h2 className="mb-4 text-base font-semibold text-text-primary">
           Trending Now
         </h2>
@@ -33,7 +95,7 @@ export default function RightSidebar({
       </div>
 
       {/* Suggested For You */}
-      <div className="rounded-2xl border border-border bg-card p-5">
+      <div className="rounded-2xl border border-side-border bg-side-card p-5">
         <h2 className="mb-4 text-base font-semibold text-text-primary">
           Suggested For You
         </h2>

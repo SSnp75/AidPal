@@ -8,8 +8,15 @@ import {
   samplePosts,
   sampleTrending,
   sampleSuggestions,
+  type SamplePost,
 } from "@/lib/sampleFeed";
+import { fetchFeedPosts, rankByEngagement } from "@/lib/feed";
 import type { Profile } from "@/types/db";
+
+interface GroupSummary {
+  id: string;
+  name: string;
+}
 
 export default async function HomePage() {
   if (!isSupabaseConfigured()) {
@@ -32,6 +39,8 @@ export default async function HomePage() {
   // Derive the profile card data from the current user when trivially available.
   let displayName = "Guest";
   let handle = "guest";
+  let createdGroups: GroupSummary[] = [];
+  let memberGroups: GroupSummary[] = [];
 
   try {
     const supabase = await createClient();
@@ -51,20 +60,71 @@ export default async function HomePage() {
       handle = (profile?.display_name || user.email?.split("@")[0] || "guest")
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "");
+
+      // Groups this user owns (created).
+      const { data: owned } = await supabase
+        .from("groups")
+        .select("id, name")
+        .eq("owner_id", user.id)
+        .order("created_at", { ascending: false })
+        .returns<GroupSummary[]>();
+      createdGroups = owned ?? [];
+
+      // Groups this user is a member of (role = member, i.e. not owner).
+      const { data: memberships } = await supabase
+        .from("group_members")
+        .select("role, groups ( id, name )")
+        .eq("user_id", user.id)
+        .eq("role", "member")
+        .returns<{ role: string; groups: GroupSummary | null }[]>();
+      memberGroups = (memberships ?? [])
+        .map((m) => m.groups)
+        .filter((g): g is GroupSummary => g !== null);
     }
   } catch {
     // no session — keep placeholder guest identity
   }
 
+  // Fetch real posts from the database for the feed.
+  let latestPosts: SamplePost[] = [];
+  let trendingPosts: SamplePost[] = [];
+
+  try {
+    const supabase = await createClient();
+    const allPosts = await fetchFeedPosts(supabase, 30);
+    if (allPosts.length > 0) {
+      latestPosts = allPosts.slice(0, 15);
+      trendingPosts = rankByEngagement(allPosts).slice(0, 10);
+    }
+  } catch {
+    // if feed fetch fails, fall through to sample data
+  }
+
+  // Fall back to sample data when there are no real posts.
+  const useRealFeed = latestPosts.length > 0;
+
   // Presentational sample stats (no backend counts).
   const stats = { posts: 128, followers: 2140, following: 312 };
 
   return (
-    <div className="app-bg-glow min-h-full w-full">
-      <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 px-4 py-8 max-[767px]:px-2 min-[992px]:grid-cols-[260px_minmax(0,1fr)_300px]">
-        <LeftSidebar displayName={displayName} handle={handle} stats={stats} />
-        <CenterFeed composerName={displayName} posts={samplePosts} />
-        <RightSidebar trending={sampleTrending} suggestions={sampleSuggestions} />
+    <div className="min-h-full w-full">
+      <div className="mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-6 px-4 py-8 max-[767px]:px-2 min-[992px]:grid-cols-[15%_minmax(0,70%)_15%]">
+        <LeftSidebar
+          displayName={displayName}
+          handle={handle}
+          stats={stats}
+        />
+        <CenterFeed
+          composerName={displayName}
+          latestPosts={useRealFeed ? latestPosts : samplePosts}
+          trendingPosts={useRealFeed ? trendingPosts : []}
+        />
+        <RightSidebar
+          trending={sampleTrending}
+          suggestions={sampleSuggestions}
+          createdGroups={createdGroups}
+          memberGroups={memberGroups}
+        />
       </div>
     </div>
   );
