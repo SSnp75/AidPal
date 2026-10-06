@@ -1,0 +1,7 @@
+{
+  "task_id": "task-aidpal-wave1-remainder",
+  "task_description": "Implement AidPal Wave 1 remainder: Bookmark/Save (+ /saved), real Photos gallery (/photos), private My Activity tracking (/activity), and Share-by-copy-link. Additive only; preserve all existing features and uncommitted theme edits; end with a green `npm run build`.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}
