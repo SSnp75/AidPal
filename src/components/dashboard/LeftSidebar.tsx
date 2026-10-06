@@ -161,10 +161,10 @@ export default function LeftSidebar({
             </Link>
           </li>
           <li>
-            <button type="button" disabled aria-disabled="true" className={disabledNavClass}>
+            <Link href="/photos" className={linkNavClass}>
               <PhotosIcon />
               <span>Photos</span>
-            </button>
+            </Link>
           </li>
           <li>
             <Link href="/saved" className={linkNavClass}>

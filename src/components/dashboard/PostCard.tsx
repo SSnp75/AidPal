@@ -3,6 +3,7 @@ import Avatar from "./Avatar";
 import PostBody from "@/components/PostBody";
 import ReactionBar from "@/components/ReactionBar";
 import BookmarkButton from "@/components/BookmarkButton";
+import ShareButton from "@/components/ShareButton";
 import type { SamplePost } from "@/lib/sampleFeed";
 
 const engagementBtn =
@@ -85,6 +86,7 @@ export default function PostCard({ post }: { post: SamplePost }) {
           initialBookmarked={post.bookmarked}
           disabled={!post.isReal}
         />
+        <ShareButton groupId={post.groupId} disabled={!post.isReal} />
       </div>
     </article>
   );

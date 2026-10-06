@@ -6,6 +6,7 @@ import MediaUploadForm from "@/components/MediaUploadForm";
 import CommentForm from "@/components/CommentForm";
 import ReactionBar from "@/components/ReactionBar";
 import BookmarkButton from "@/components/BookmarkButton";
+import ShareButton from "@/components/ShareButton";
 import JoinButton from "@/components/JoinButton";
 import PostBody from "@/components/PostBody";
 import type { Group, Post, Media, Comment, Profile, ReactionType } from "@/types/db";
@@ -215,6 +216,7 @@ export default async function GroupDetailPage({
                         initialBookmarked={bookmarkedSet.has(post.id)}
                         disabled={false}
                       />
+                      <ShareButton groupId={group.id} disabled={false} />
                     </div>
 
                     {/* Comments */}
