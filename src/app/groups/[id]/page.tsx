@@ -5,6 +5,7 @@ import SupabaseNotConfigured from "@/components/SupabaseNotConfigured";
 import MediaUploadForm from "@/components/MediaUploadForm";
 import CommentForm from "@/components/CommentForm";
 import ReactionBar from "@/components/ReactionBar";
+import BookmarkButton from "@/components/BookmarkButton";
 import JoinButton from "@/components/JoinButton";
 import PostBody from "@/components/PostBody";
 import type { Group, Post, Media, Comment, Profile, ReactionType } from "@/types/db";
@@ -58,7 +59,7 @@ export default async function GroupDetailPage({
   const postIds = (posts ?? []).map((p) => p.id);
 
   // Media, comments, reactions, author profiles for these posts
-  const [mediaRes, commentsRes, reactionsRes, authorsRes] = await Promise.all([
+  const [mediaRes, commentsRes, reactionsRes, authorsRes, bookmarksRes] = await Promise.all([
     postIds.length
       ? supabase.from("media").select("*").in("post_id", postIds).returns<Media[]>()
       : Promise.resolve({ data: [] as Media[] }),
@@ -89,6 +90,14 @@ export default async function GroupDetailPage({
           )
           .returns<Pick<Profile, "id" | "display_name">[]>()
       : Promise.resolve({ data: [] as Pick<Profile, "id" | "display_name">[] }),
+    user && postIds.length
+      ? supabase
+          .from("bookmarks")
+          .select("post_id")
+          .eq("user_id", user.id)
+          .in("post_id", postIds)
+          .returns<{ post_id: string }[]>()
+      : Promise.resolve({ data: [] as { post_id: string }[] }),
   ]);
 
   const mediaByPost = new Map<string, Media>();
@@ -117,6 +126,10 @@ export default async function GroupDetailPage({
   const authorNames = new Map<string, string>();
   for (const a of authorsRes.data ?? [])
     authorNames.set(a.id, a.display_name);
+
+  const bookmarkedSet = new Set(
+    (bookmarksRes.data ?? []).map((b) => b.post_id)
+  );
 
   function publicUrl(path: string): string {
     return supabase.storage.from("media").getPublicUrl(path).data.publicUrl;
@@ -196,6 +209,11 @@ export default async function GroupDetailPage({
                         postId={post.id}
                         initialCounts={reactionInfo.counts}
                         initialMine={reactionInfo.mine}
+                      />
+                      <BookmarkButton
+                        postId={post.id}
+                        initialBookmarked={bookmarkedSet.has(post.id)}
+                        disabled={false}
                       />
                     </div>
 

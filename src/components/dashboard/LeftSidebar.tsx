@@ -54,6 +54,13 @@ function PhotosIcon() {
     </svg>
   );
 }
+function BookmarkNavIcon() {
+  return (
+    <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 4h12a1 1 0 0 1 1 1v15l-7-4-7 4V5a1 1 0 0 1 1-1Z" />
+    </svg>
+  );
+}
 function SettingsIcon() {
   return (
     <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -151,6 +158,12 @@ export default function LeftSidebar({
               <PhotosIcon />
               <span>Photos</span>
             </button>
+          </li>
+          <li>
+            <Link href="/saved" className={linkNavClass}>
+              <BookmarkNavIcon />
+              <span>Saved</span>
+            </Link>
           </li>
           <li>
             <Link href="/profile/edit" className={linkNavClass}>

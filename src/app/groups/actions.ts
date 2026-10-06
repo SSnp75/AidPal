@@ -421,3 +421,79 @@ export async function setReaction({
 
   return { ok: true, counts, mine };
 }
+
+/* ── toggleBookmark ── */
+
+export type ToggleBookmarkResult =
+  | { ok: true; bookmarked: boolean }
+  | { ok: false; error: string };
+
+/**
+ * Toggle the current user's bookmark on a post.
+ *   - no existing row → insert (bookmarked:true)
+ *   - existing row    → zero-row-aware delete (bookmarked:false)
+ * Mirrors the setReaction control flow (read via maybeSingle, write, assert
+ * affected rows). RLS gates visibility via can_read_post.
+ */
+export async function toggleBookmark({
+  postId,
+}: {
+  postId: string;
+}): Promise<ToggleBookmarkResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false, error: "Sign in to save posts." };
+  }
+
+  if (!isUUID(postId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  // Read the viewer's current bookmark on this post.
+  const { data: existing } = await supabase
+    .from("bookmarks")
+    .select("post_id")
+    .eq("post_id", postId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!existing) {
+    // Insert. A failing `with check` raises Postgres 42501 → non-null error.
+    const { error } = await supabase
+      .from("bookmarks")
+      .insert({ post_id: postId, user_id: user.id });
+    if (error) {
+      console.error("[toggleBookmark] insert", error.message);
+      return { ok: false, error: "Could not update bookmark. Try again." };
+    }
+    revalidatePath("/saved");
+    return { ok: true, bookmarked: true };
+  }
+
+  // Toggle off. A denied DELETE `using` filters to 0 rows WITHOUT error,
+  // so request the affected rows and assert a match.
+  const { data: deleted, error } = await supabase
+    .from("bookmarks")
+    .delete()
+    .eq("post_id", postId)
+    .eq("user_id", user.id)
+    .select("post_id")
+    .returns<{ post_id: string }[]>();
+  if (error) {
+    console.error("[toggleBookmark] delete", error.message);
+    return { ok: false, error: "Could not update bookmark. Try again." };
+  }
+  if (!deleted || deleted.length === 0) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  revalidatePath("/saved");
+  return { ok: true, bookmarked: false };
+}

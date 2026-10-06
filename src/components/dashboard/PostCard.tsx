@@ -2,6 +2,7 @@ import Link from "next/link";
 import Avatar from "./Avatar";
 import PostBody from "@/components/PostBody";
 import ReactionBar from "@/components/ReactionBar";
+import BookmarkButton from "@/components/BookmarkButton";
 import type { SamplePost } from "@/lib/sampleFeed";
 
 const engagementBtn =
@@ -79,6 +80,11 @@ export default function PostCard({ post }: { post: SamplePost }) {
             <span aria-hidden="true">💬</span> {post.comments}
           </button>
         )}
+        <BookmarkButton
+          postId={post.id}
+          initialBookmarked={post.bookmarked}
+          disabled={!post.isReal}
+        />
       </div>
     </article>
   );
