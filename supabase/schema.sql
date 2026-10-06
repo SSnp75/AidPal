@@ -67,6 +67,26 @@ create table if not exists public.reactions (
   primary key (post_id, user_id)
 );
 
+create table if not exists public.bookmarks (
+  post_id    uuid not null references public.posts(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+create table if not exists public.activities (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  verb        text not null check (verb in ('created_post','commented','reacted','joined_group','created_group','bookmarked')),
+  target_type text,
+  target_id   uuid,
+  group_id    uuid references public.groups(id) on delete set null,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists bookmarks_user_created_idx on public.bookmarks (user_id, created_at desc);
+create index if not exists activities_user_created_idx on public.activities (user_id, created_at desc);
+
 -- ═══════════════════════════════════════════════
 -- RLS: Enable on all tables
 -- ═══════════════════════════════════════════════
@@ -78,6 +98,8 @@ alter table public.posts         enable row level security;
 alter table public.media         enable row level security;
 alter table public.comments      enable row level security;
 alter table public.reactions     enable row level security;
+alter table public.bookmarks     enable row level security;
+alter table public.activities    enable row level security;
 
 -- ═══════════════════════════════════════════════
 -- Helper functions (SECURITY DEFINER)
@@ -299,6 +321,35 @@ create policy reactions_update on public.reactions
 create policy reactions_delete on public.reactions
   for delete to authenticated using (user_id = auth.uid());
 
+-- ── bookmarks ──
+-- Self-scoped; INSERT additionally gated by can_read_post so a viewer can
+-- only bookmark a post they are allowed to see. No anon grants.
+drop policy if exists bookmarks_select on public.bookmarks;
+drop policy if exists bookmarks_insert on public.bookmarks;
+drop policy if exists bookmarks_delete on public.bookmarks;
+
+create policy bookmarks_select on public.bookmarks
+  for select to authenticated using (user_id = auth.uid());
+
+create policy bookmarks_insert on public.bookmarks
+  for insert to authenticated
+  with check (user_id = auth.uid() and public.can_read_post(post_id));
+
+create policy bookmarks_delete on public.bookmarks
+  for delete to authenticated using (user_id = auth.uid());
+
+-- ── activities ──
+-- Append-only self activity log: SELECT + INSERT only (no UPDATE/DELETE).
+-- No anon grants.
+drop policy if exists activities_select on public.activities;
+drop policy if exists activities_insert on public.activities;
+
+create policy activities_select on public.activities
+  for select to authenticated using (user_id = auth.uid());
+
+create policy activities_insert on public.activities
+  for insert to authenticated with check (user_id = auth.uid());
+
 -- ═══════════════════════════════════════════════
 -- Storage: media bucket + policies
 -- ═══════════════════════════════════════════════
@@ -393,3 +444,58 @@ begin
     drop table public.likes;
   end if;
 end $$;
+
+-- ============================================================
+-- INCREMENTAL MIGRATION: add bookmarks + activities
+-- Run ONCE in the Supabase SQL editor — touches no existing data;
+-- safe to re-run. References only pre-existing objects
+-- (posts, profiles, groups, can_read_post). Byte-identical in
+-- effect to the canonical statements above.
+-- ============================================================
+
+-- 1. Tables (no-op if already present).
+create table if not exists public.bookmarks (
+  post_id    uuid not null references public.posts(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+create table if not exists public.activities (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  verb        text not null check (verb in ('created_post','commented','reacted','joined_group','created_group','bookmarked')),
+  target_type text,
+  target_id   uuid,
+  group_id    uuid references public.groups(id) on delete set null,
+  created_at  timestamptz not null default now()
+);
+
+-- 2. Indexes (no-op if already present).
+create index if not exists bookmarks_user_created_idx on public.bookmarks (user_id, created_at desc);
+create index if not exists activities_user_created_idx on public.activities (user_id, created_at desc);
+
+-- 3. Enable RLS.
+alter table public.bookmarks  enable row level security;
+alter table public.activities enable row level security;
+
+-- 4. Policies (drop-then-create = safe to re-run).
+drop policy if exists bookmarks_select on public.bookmarks;
+drop policy if exists bookmarks_insert on public.bookmarks;
+drop policy if exists bookmarks_delete on public.bookmarks;
+
+create policy bookmarks_select on public.bookmarks
+  for select to authenticated using (user_id = auth.uid());
+create policy bookmarks_insert on public.bookmarks
+  for insert to authenticated
+  with check (user_id = auth.uid() and public.can_read_post(post_id));
+create policy bookmarks_delete on public.bookmarks
+  for delete to authenticated using (user_id = auth.uid());
+
+drop policy if exists activities_select on public.activities;
+drop policy if exists activities_insert on public.activities;
+
+create policy activities_select on public.activities
+  for select to authenticated using (user_id = auth.uid());
+create policy activities_insert on public.activities
+  for insert to authenticated with check (user_id = auth.uid());

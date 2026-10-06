@@ -58,3 +58,27 @@ export interface Reaction {
   type: ReactionType;
   created_at: string;
 }
+
+export type ActivityVerb =
+  | "created_post"
+  | "commented"
+  | "reacted"
+  | "joined_group"
+  | "created_group"
+  | "bookmarked";
+
+export interface Bookmark {
+  post_id: string;
+  user_id: string;
+  created_at: string;
+}
+
+export interface Activity {
+  id: string;
+  user_id: string;
+  verb: ActivityVerb;
+  target_type: string | null;
+  target_id: string | null;
+  group_id: string | null;
+  created_at: string;
+}

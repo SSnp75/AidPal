@@ -31,7 +31,7 @@ export async function fetchFeedPosts(
   const postIds = posts.map((p) => p.id);
   const authorIds = Array.from(new Set(posts.map((p) => p.author_id)));
 
-  const [reactionsRes, commentsRes, authorsRes] = await Promise.all([
+  const [reactionsRes, commentsRes, authorsRes, bmRes] = await Promise.all([
     supabase
       .from("reactions")
       .select("post_id, user_id, type")
@@ -47,6 +47,14 @@ export async function fetchFeedPosts(
       .select("id, display_name")
       .in("id", authorIds)
       .returns<Pick<Profile, "id" | "display_name">[]>(),
+    user
+      ? supabase
+          .from("bookmarks")
+          .select("post_id")
+          .eq("user_id", user.id)
+          .in("post_id", postIds)
+          .returns<{ post_id: string }[]>()
+      : Promise.resolve({ data: [] as { post_id: string }[] }),
   ]);
 
   const reactionCounts = new Map<
@@ -69,6 +77,8 @@ export async function fetchFeedPosts(
   const authorName = new Map<string, string>();
   for (const a of authorsRes.data ?? []) authorName.set(a.id, a.display_name);
 
+  const bookmarkedSet = new Set((bmRes.data ?? []).map((b) => b.post_id));
+
   return posts.map((p) => {
     const name = authorName.get(p.author_id) ?? "Someone";
     const reactions = reactionCounts.get(p.id) ?? { like: 0, love: 0, dislike: 0 };
@@ -86,6 +96,7 @@ export async function fetchFeedPosts(
       groupId: p.group_id,
       reactions,
       myReaction: myReaction.get(p.id) ?? null,
+      bookmarked: user ? bookmarkedSet.has(p.id) : false,
     } satisfies SamplePost;
   });
 }
@@ -101,7 +112,7 @@ export function rankByEngagement(posts: SamplePost[]): SamplePost[] {
   return [...posts].sort((a, b) => score(b) - score(a));
 }
 
-function timeAgo(iso: string): string {
+export function timeAgo(iso: string): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "";
   const sec = Math.max(0, Math.floor((Date.now() - then) / 1000));

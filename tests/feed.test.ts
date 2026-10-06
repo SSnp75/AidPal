@@ -21,6 +21,7 @@ function makePost(
     groupId: "g1",
     reactions,
     myReaction: null,
+    bookmarked: false,
   };
 }
 

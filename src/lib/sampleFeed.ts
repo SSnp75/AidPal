@@ -18,6 +18,7 @@ export interface SamplePost {
   groupId: string | null; // owning group for the comment link; null for placeholders
   reactions: { like: number; love: number; dislike: number };
   myReaction: "like" | "love" | "dislike" | null;
+  bookmarked: boolean;
 }
 
 export interface TrendingItem {
@@ -45,6 +46,7 @@ export const samplePosts: SamplePost[] = [
     groupId: null,
     reactions: { like: 248, love: 0, dislike: 0 },
     myReaction: null,
+    bookmarked: false,
   },
   {
     id: "2",
@@ -60,6 +62,7 @@ export const samplePosts: SamplePost[] = [
     groupId: null,
     reactions: { like: 97, love: 0, dislike: 0 },
     myReaction: null,
+    bookmarked: false,
   },
   {
     id: "3",
@@ -75,6 +78,7 @@ export const samplePosts: SamplePost[] = [
     groupId: null,
     reactions: { like: 512, love: 0, dislike: 0 },
     myReaction: null,
+    bookmarked: false,
   },
 ];
 
