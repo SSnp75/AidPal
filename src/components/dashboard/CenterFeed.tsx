@@ -1,0 +1,72 @@
+import Avatar from "./Avatar";
+import PostCard from "./PostCard";
+import type { SamplePost } from "@/lib/sampleFeed";
+
+export default function CenterFeed({
+  composerName,
+  posts,
+}: {
+  composerName: string;
+  posts: SamplePost[];
+}) {
+  return (
+    <section className="flex flex-col gap-5">
+      {/* Create-post composer */}
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="flex gap-3">
+          <Avatar name={composerName} />
+          <div className="flex-1">
+            <label htmlFor="compose-post" className="sr-only">
+              What&apos;s on your mind?
+            </label>
+            <textarea
+              id="compose-post"
+              placeholder="What's on your mind?"
+              readOnly
+              rows={3}
+              className="w-full resize-none rounded-xl border border-border bg-secondary px-4 py-3 text-sm text-text-primary placeholder-text-secondary/50 transition-colors focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent"
+            />
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled
+              className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs text-text-secondary transition-colors disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <span aria-hidden="true">📷</span> Photo
+            </button>
+            <button
+              type="button"
+              disabled
+              className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs text-text-secondary transition-colors disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <span aria-hidden="true">🎬</span> Video
+            </button>
+            <button
+              type="button"
+              disabled
+              className="flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1.5 text-xs text-text-secondary transition-colors disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              <span aria-hidden="true">😊</span> Feeling
+            </button>
+          </div>
+          <button
+            type="button"
+            disabled
+            className="rounded-full bg-accent px-5 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-accent-light disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+          >
+            Post
+          </button>
+        </div>
+      </div>
+
+      {/* Feed */}
+      {posts.map((post) => (
+        <PostCard key={post.id} post={post} />
+      ))}
+    </section>
+  );
+}

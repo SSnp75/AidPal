@@ -7,7 +7,11 @@ import ProfileEditForm from "./ProfileEditForm";
 
 export default async function ProfileEditPage() {
   if (!isSupabaseConfigured()) {
-    return <SupabaseNotConfigured />;
+    return (
+      <div className="mx-auto w-full max-w-5xl px-4 py-8">
+        <SupabaseNotConfigured />
+      </div>
+    );
   }
 
   const supabase = await createClient();
@@ -24,12 +28,14 @@ export default async function ProfileEditPage() {
     .single<Profile>();
 
   return (
-    <ProfileEditForm
-      initial={{
-        displayName: profile?.display_name ?? "",
-        bio: profile?.bio ?? "",
-        avatarUrl: profile?.avatar_url ?? "",
-      }}
-    />
+    <div className="mx-auto w-full max-w-5xl px-4 py-8">
+      <ProfileEditForm
+        initial={{
+          displayName: profile?.display_name ?? "",
+          bio: profile?.bio ?? "",
+          avatarUrl: profile?.avatar_url ?? "",
+        }}
+      />
+    </div>
   );
 }

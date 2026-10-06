@@ -6,7 +6,11 @@ import type { Group } from "@/types/db";
 
 export default async function GroupsPage() {
   if (!isSupabaseConfigured()) {
-    return <SupabaseNotConfigured />;
+    return (
+      <div className="mx-auto w-full max-w-5xl px-4 py-8">
+        <SupabaseNotConfigured />
+      </div>
+    );
   }
 
   const supabase = await createClient();
@@ -23,7 +27,7 @@ export default async function GroupsPage() {
     .returns<Group[]>();
 
   return (
-    <div>
+    <div className="mx-auto w-full max-w-5xl px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-teal-400">Public Groups</h1>
         {user && (

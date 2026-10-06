@@ -4,7 +4,15 @@ import RegisterForm from "./RegisterForm";
 
 export default function RegisterPage() {
   if (!isSupabaseConfigured()) {
-    return <SupabaseNotConfigured />;
+    return (
+      <div className="mx-auto w-full max-w-5xl px-4 py-8">
+        <SupabaseNotConfigured />
+      </div>
+    );
   }
-  return <RegisterForm />;
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 py-8">
+      <RegisterForm />
+    </div>
+  );
 }

@@ -14,7 +14,11 @@ export default async function GroupDetailPage({
   params: Promise<{ id: string }>;
 }) {
   if (!isSupabaseConfigured()) {
-    return <SupabaseNotConfigured />;
+    return (
+      <div className="mx-auto w-full max-w-5xl px-4 py-8">
+        <SupabaseNotConfigured />
+      </div>
+    );
   }
 
   const { id } = await params;
@@ -107,102 +111,104 @@ export default async function GroupDetailPage({
   }
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-teal-400">{group.name}</h1>
-        {group.is_private && (
-          <span className="inline-block mt-1 rounded bg-gray-800 px-2 py-0.5 text-xs text-gray-400">
-            Private
-          </span>
-        )}
-        {group.description && (
-          <p className="mt-2 text-gray-300">{group.description}</p>
-        )}
-      </header>
+    <div className="mx-auto w-full max-w-5xl px-4 py-8">
+      <div className="space-y-6">
+        <header>
+          <h1 className="text-2xl font-bold text-teal-400">{group.name}</h1>
+          {group.is_private && (
+            <span className="inline-block mt-1 rounded bg-gray-800 px-2 py-0.5 text-xs text-gray-400">
+              Private
+            </span>
+          )}
+          {group.description && (
+            <p className="mt-2 text-gray-300">{group.description}</p>
+          )}
+        </header>
 
-      {/* Join / Post controls */}
-      {user ? (
-        isMember ? (
-          <MediaUploadForm groupId={group.id} />
-        ) : !group.is_private ? (
-          <JoinButton groupId={group.id} />
+        {/* Join / Post controls */}
+        {user ? (
+          isMember ? (
+            <MediaUploadForm groupId={group.id} />
+          ) : !group.is_private ? (
+            <JoinButton groupId={group.id} />
+          ) : (
+            <p className="text-sm text-gray-400">
+              This is a private group. You need an invitation to participate.
+            </p>
+          )
         ) : (
           <p className="text-sm text-gray-400">
-            This is a private group. You need an invitation to participate.
+            Sign in to join this group and post.
           </p>
-        )
-      ) : (
-        <p className="text-sm text-gray-400">
-          Sign in to join this group and post.
-        </p>
-      )}
-
-      {/* Posts */}
-      <section>
-        <h2 className="text-lg font-semibold text-gray-200 mb-3">Posts</h2>
-        {!posts || posts.length === 0 ? (
-          <p className="text-gray-400">No posts yet.</p>
-        ) : (
-          <ul className="space-y-6">
-            {posts.map((post) => {
-              const media = mediaByPost.get(post.id);
-              const comments = commentsByPost.get(post.id) ?? [];
-              const likeInfo =
-                likesByPost.get(post.id) ?? { count: 0, mine: false };
-              const authorName =
-                authorNames.get(post.author_id) ?? "Someone";
-
-              return (
-                <li
-                  key={post.id}
-                  className="rounded-xl border border-gray-800 bg-gray-900/50 p-4"
-                >
-                  <p className="text-xs text-gray-500 mb-2">{authorName}</p>
-
-                  {post.body && (
-                    <p className="text-gray-200 whitespace-pre-wrap mb-3">
-                      {post.body}
-                    </p>
-                  )}
-
-                  {media && (
-                    <img
-                      src={publicUrl(media.storage_path)}
-                      alt={`Image posted by ${authorName} in ${group.name}`}
-                      className="rounded-lg max-h-96 w-auto border border-gray-800 mb-3"
-                    />
-                  )}
-
-                  <div className="flex items-center gap-3">
-                    <LikeButton
-                      postId={post.id}
-                      initialLiked={likeInfo.mine}
-                      initialCount={likeInfo.count}
-                    />
-                  </div>
-
-                  {/* Comments */}
-                  <div className="mt-3 border-t border-gray-800 pt-3">
-                    {comments.length > 0 && (
-                      <ul className="space-y-2 mb-2">
-                        {comments.map((c) => (
-                          <li key={c.id} className="text-sm">
-                            <span className="text-gray-400">
-                              {authorNames.get(c.author_id) ?? "Someone"}:
-                            </span>{" "}
-                            <span className="text-gray-200">{c.body}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {user && isMember && <CommentForm postId={post.id} />}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
         )}
-      </section>
+
+        {/* Posts */}
+        <section>
+          <h2 className="text-lg font-semibold text-gray-200 mb-3">Posts</h2>
+          {!posts || posts.length === 0 ? (
+            <p className="text-gray-400">No posts yet.</p>
+          ) : (
+            <ul className="space-y-6">
+              {posts.map((post) => {
+                const media = mediaByPost.get(post.id);
+                const comments = commentsByPost.get(post.id) ?? [];
+                const likeInfo =
+                  likesByPost.get(post.id) ?? { count: 0, mine: false };
+                const authorName =
+                  authorNames.get(post.author_id) ?? "Someone";
+
+                return (
+                  <li
+                    key={post.id}
+                    className="rounded-xl border border-gray-800 bg-gray-900/50 p-4"
+                  >
+                    <p className="text-xs text-gray-500 mb-2">{authorName}</p>
+
+                    {post.body && (
+                      <p className="text-gray-200 whitespace-pre-wrap mb-3">
+                        {post.body}
+                      </p>
+                    )}
+
+                    {media && (
+                      <img
+                        src={publicUrl(media.storage_path)}
+                        alt={`Image posted by ${authorName} in ${group.name}`}
+                        className="rounded-lg max-h-96 w-auto border border-gray-800 mb-3"
+                      />
+                    )}
+
+                    <div className="flex items-center gap-3">
+                      <LikeButton
+                        postId={post.id}
+                        initialLiked={likeInfo.mine}
+                        initialCount={likeInfo.count}
+                      />
+                    </div>
+
+                    {/* Comments */}
+                    <div className="mt-3 border-t border-gray-800 pt-3">
+                      {comments.length > 0 && (
+                        <ul className="space-y-2 mb-2">
+                          {comments.map((c) => (
+                            <li key={c.id} className="text-sm">
+                              <span className="text-gray-400">
+                                {authorNames.get(c.author_id) ?? "Someone"}:
+                              </span>{" "}
+                              <span className="text-gray-200">{c.body}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {user && isMember && <CommentForm postId={post.id} />}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

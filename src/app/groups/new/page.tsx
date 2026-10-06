@@ -6,7 +6,11 @@ import NewGroupForm from "./NewGroupForm";
 
 export default async function NewGroupPage() {
   if (!isSupabaseConfigured()) {
-    return <SupabaseNotConfigured />;
+    return (
+      <div className="mx-auto w-full max-w-5xl px-4 py-8">
+        <SupabaseNotConfigured />
+      </div>
+    );
   }
 
   const supabase = await createClient();
@@ -16,5 +20,9 @@ export default async function NewGroupPage() {
 
   if (!user) redirect("/login?next=/groups/new");
 
-  return <NewGroupForm />;
+  return (
+    <div className="mx-auto w-full max-w-5xl px-4 py-8">
+      <NewGroupForm />
+    </div>
+  );
 }
