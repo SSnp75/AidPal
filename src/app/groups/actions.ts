@@ -17,7 +17,37 @@ import {
 import { isReactionType } from "@/lib/validation";
 import { buildMediaKey } from "@/lib/storage-path";
 import type { ActionResult } from "@/app/auth/actions";
-import type { ReactionType } from "@/types/db";
+import type { ReactionType, ActivityVerb } from "@/types/db";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/* ── logActivity (best-effort private activity log) ── */
+
+/**
+ * Record a private activity row for the acting user. Best-effort: any error
+ * (returned or thrown) is logged and swallowed, never rethrown, so it can
+ * never roll back or fail the primary action it instruments.
+ */
+async function logActivity(
+  supabase: SupabaseClient,
+  userId: string,
+  verb: ActivityVerb,
+  opts: { targetType?: string; targetId?: string | null; groupId?: string | null } = {}
+): Promise<void> {
+  try {
+    const { error } = await supabase.from("activities").insert({
+      user_id: userId,
+      verb,
+      target_type: opts.targetType ?? null,
+      target_id: opts.targetId ?? null,
+      group_id: opts.groupId ?? null,
+    });
+    if (error) {
+      console.error("[logActivity]", error.message);
+    }
+  } catch (err) {
+    console.error("[logActivity]", err);
+  }
+}
 
 /* ── createGroup ── */
 
@@ -60,6 +90,12 @@ export async function createGroup(
     return { ok: false, error: "Could not create group. Try again." };
   }
 
+  await logActivity(supabase, user.id, "created_group", {
+    targetType: "group",
+    targetId: data,
+    groupId: data,
+  });
+
   redirect(`/groups/${data}`);
 }
 
@@ -97,6 +133,12 @@ export async function joinGroup({
     }
     return { ok: false, error: "Could not join group. Try again." };
   }
+
+  await logActivity(supabase, user.id, "joined_group", {
+    targetType: "group",
+    targetId: groupId,
+    groupId: groupId,
+  });
 
   revalidatePath(`/groups/${groupId}`);
   return { ok: true };
@@ -225,18 +267,34 @@ export async function createPost(
       await supabase.from("posts").delete().eq("id", postRow.id);
       return { ok: false, error: "Could not create post. Try again." };
     }
+
+    await logActivity(supabase, user.id, "created_post", {
+      targetType: "post",
+      targetId: postRow.id,
+      groupId: groupId,
+    });
   } else {
     // Text-only post
-    const { error: postError } = await supabase.from("posts").insert({
-      group_id: groupId,
-      author_id: user.id,
-      body,
-    });
+    const { data: textPost, error: postError } = await supabase
+      .from("posts")
+      .insert({
+        group_id: groupId,
+        author_id: user.id,
+        body,
+      })
+      .select("id")
+      .single<{ id: string }>();
 
     if (postError) {
       console.error("[createPost] text post", postError.message);
       return { ok: false, error: "Could not create post. Try again." };
     }
+
+    await logActivity(supabase, user.id, "created_post", {
+      targetType: "post",
+      targetId: textPost.id,
+      groupId: groupId,
+    });
   }
 
   revalidatePath(`/groups/${groupId}`);
@@ -289,7 +347,14 @@ export async function addComment(
     .eq("id", postId)
     .single();
 
-  if (post) revalidatePath(`/groups/${post.group_id}`);
+  if (post) {
+    revalidatePath(`/groups/${post.group_id}`);
+    await logActivity(supabase, user.id, "commented", {
+      targetType: "post",
+      targetId: postId,
+      groupId: post.group_id,
+    });
+  }
   return { ok: true };
 }
 
@@ -346,6 +411,8 @@ export async function setReaction({
 
   const current = (existing as { type: ReactionType } | null)?.type ?? null;
 
+  let didReact = false;
+
   if (current === null) {
     // Insert. A failing `with check` raises Postgres 42501 → non-null error.
     const { error } = await supabase
@@ -355,6 +422,7 @@ export async function setReaction({
       console.error("[setReaction] insert", error.message);
       return { ok: false, error: "Could not update reaction. Try again." };
     }
+    didReact = true;
   } else if (current !== type) {
     // Switch type. A denied UPDATE `using` filters to 0 rows WITHOUT error,
     // so request the affected rows and assert a match.
@@ -371,6 +439,7 @@ export async function setReaction({
     if (!updated || updated.length === 0) {
       return { ok: false, error: "Not found or not allowed." };
     }
+    didReact = true;
   } else {
     // Toggle off (same type). A denied DELETE `using` also filters to 0 rows
     // without error, so assert a match the same way.
@@ -418,6 +487,13 @@ export async function setReaction({
     .eq("id", postId)
     .maybeSingle();
   if (post) revalidatePath(`/groups/${(post as { group_id: string }).group_id}`);
+
+  if (didReact && post)
+    await logActivity(supabase, user.id, "reacted", {
+      targetType: "post",
+      targetId: postId,
+      groupId: (post as { group_id: string }).group_id,
+    });
 
   return { ok: true, counts, mine };
 }
@@ -473,6 +549,10 @@ export async function toggleBookmark({
       console.error("[toggleBookmark] insert", error.message);
       return { ok: false, error: "Could not update bookmark. Try again." };
     }
+    await logActivity(supabase, user.id, "bookmarked", {
+      targetType: "post",
+      targetId: postId,
+    });
     revalidatePath("/saved");
     return { ok: true, bookmarked: true };
   }

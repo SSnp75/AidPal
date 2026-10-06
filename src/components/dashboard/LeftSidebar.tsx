@@ -61,6 +61,13 @@ function BookmarkNavIcon() {
     </svg>
   );
 }
+function ActivityNavIcon() {
+  return (
+    <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12h4l2 7 4-14 2 7h6" />
+    </svg>
+  );
+}
 function SettingsIcon() {
   return (
     <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -163,6 +170,12 @@ export default function LeftSidebar({
             <Link href="/saved" className={linkNavClass}>
               <BookmarkNavIcon />
               <span>Saved</span>
+            </Link>
+          </li>
+          <li>
+            <Link href="/activity" className={linkNavClass}>
+              <ActivityNavIcon />
+              <span>Activity</span>
             </Link>
           </li>
           <li>
