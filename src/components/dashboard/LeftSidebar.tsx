@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Avatar from "./Avatar";
+import NavLink from "./NavLink";
 
 interface Stats {
   posts: number;
@@ -149,10 +150,7 @@ export default function LeftSidebar({
             </button>
           </li>
           <li>
-            <button type="button" disabled aria-disabled="true" className={disabledNavClass}>
-              <FriendsIcon />
-              <span>Friends</span>
-            </button>
+            <NavLink href="/friends" icon={<FriendsIcon />} label="Friends" />
           </li>
           <li>
             <Link href="/groups" className={linkNavClass}>

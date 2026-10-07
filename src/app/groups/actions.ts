@@ -27,7 +27,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * (returned or thrown) is logged and swallowed, never rethrown, so it can
  * never roll back or fail the primary action it instruments.
  */
-async function logActivity(
+export async function logActivity(
   supabase: SupabaseClient,
   userId: string,
   verb: ActivityVerb,
