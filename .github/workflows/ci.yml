@@ -1,0 +1,42 @@
+name: CI
+
+# Run the build, tests, and lint on every push and pull request to main.
+# This is the "CI" stage: it protects main from broken code. Deployment (CD)
+# is handled separately by the web host (Vercel/Cloudflare) which auto-builds
+# from main once the repo is connected.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    name: Build, test, and lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        # Supabase env vars are not required for the build: the app is written
+        # to boot and show a "configure Supabase" screen when they are absent,
+        # so the production build succeeds without secrets in CI.
+        run: npm run build
+
+      - name: Test
+        run: npm run test
