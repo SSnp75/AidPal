@@ -82,8 +82,6 @@ const activeNavClass =
   "flex items-center gap-3 rounded-xl bg-accent px-3 py-2.5 font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card";
 const linkNavClass =
   "flex items-center gap-3 rounded-xl px-3 py-2.5 text-text-secondary transition-colors hover:bg-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card";
-const disabledNavClass =
-  "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-text-secondary/40 cursor-not-allowed";
 
 export default function LeftSidebar({
   displayName,
@@ -144,10 +142,7 @@ export default function LeftSidebar({
             </Link>
           </li>
           <li>
-            <button type="button" disabled aria-disabled="true" className={disabledNavClass}>
-              <TrendingIcon />
-              <span>Trending</span>
-            </button>
+            <NavLink href="/trending" icon={<TrendingIcon />} label="Trending" />
           </li>
           <li>
             <NavLink href="/friends" icon={<FriendsIcon />} label="Friends" />

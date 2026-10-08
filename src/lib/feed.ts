@@ -22,6 +22,19 @@ export async function fetchFeedPosts(
 
   if (!posts || posts.length === 0) return [];
 
+  return enrichPosts(supabase, posts);
+}
+
+/**
+ * Shared enrichment: given a set of raw posts, resolve the viewer, reaction
+ * counts, comment counts, author names, bookmark state, and the first image's
+ * public URL, then shape each row as a SamplePost. Used by both the home feed
+ * and trending so image + reaction behaviour stays identical across pages.
+ */
+async function enrichPosts(
+  supabase: SupabaseClient,
+  posts: Post[]
+): Promise<SamplePost[]> {
   // Determine the viewer once so we can compute each post's `myReaction`.
   // getUser() returns { user: null } without error when unauthenticated.
   const {
@@ -31,31 +44,40 @@ export async function fetchFeedPosts(
   const postIds = posts.map((p) => p.id);
   const authorIds = Array.from(new Set(posts.map((p) => p.author_id)));
 
-  const [reactionsRes, commentsRes, authorsRes, bmRes] = await Promise.all([
-    supabase
-      .from("reactions")
-      .select("post_id, user_id, type")
-      .in("post_id", postIds)
-      .returns<{ post_id: string; user_id: string; type: ReactionType }[]>(),
-    supabase
-      .from("comments")
-      .select("post_id")
-      .in("post_id", postIds)
-      .returns<Pick<Comment, "post_id">[]>(),
-    supabase
-      .from("profiles")
-      .select("id, display_name")
-      .in("id", authorIds)
-      .returns<Pick<Profile, "id" | "display_name">[]>(),
-    user
-      ? supabase
-          .from("bookmarks")
-          .select("post_id")
-          .eq("user_id", user.id)
-          .in("post_id", postIds)
-          .returns<{ post_id: string }[]>()
-      : Promise.resolve({ data: [] as { post_id: string }[] }),
-  ]);
+  const [reactionsRes, commentsRes, authorsRes, bmRes, mediaRes] =
+    await Promise.all([
+      supabase
+        .from("reactions")
+        .select("post_id, user_id, type")
+        .in("post_id", postIds)
+        .returns<{ post_id: string; user_id: string; type: ReactionType }[]>(),
+      supabase
+        .from("comments")
+        .select("post_id")
+        .in("post_id", postIds)
+        .returns<Pick<Comment, "post_id">[]>(),
+      supabase
+        .from("profiles")
+        .select("id, display_name")
+        .in("id", authorIds)
+        .returns<Pick<Profile, "id" | "display_name">[]>(),
+      user
+        ? supabase
+            .from("bookmarks")
+            .select("post_id")
+            .eq("user_id", user.id)
+            .in("post_id", postIds)
+            .returns<{ post_id: string }[]>()
+        : Promise.resolve({ data: [] as { post_id: string }[] }),
+      supabase
+        .from("media")
+        .select("post_id, storage_path, created_at")
+        .in("post_id", postIds)
+        .order("created_at", { ascending: true })
+        .returns<
+          { post_id: string; storage_path: string; created_at: string }[]
+        >(),
+    ]);
 
   const reactionCounts = new Map<
     string,
@@ -79,9 +101,17 @@ export async function fetchFeedPosts(
 
   const bookmarkedSet = new Set((bmRes.data ?? []).map((b) => b.post_id));
 
+  // First (earliest) media path per post — the media select is already
+  // ordered ascending, so the first row we see for a post_id is the earliest.
+  const firstMediaPath = new Map<string, string>();
+  for (const m of mediaRes.data ?? []) {
+    if (!firstMediaPath.has(m.post_id)) firstMediaPath.set(m.post_id, m.storage_path);
+  }
+
   return posts.map((p) => {
     const name = authorName.get(p.author_id) ?? "Someone";
     const reactions = reactionCounts.get(p.id) ?? { like: 0, love: 0, dislike: 0 };
+    const path = firstMediaPath.get(p.id);
     return {
       id: p.id,
       authorName: name,
@@ -97,8 +127,35 @@ export async function fetchFeedPosts(
       reactions,
       myReaction: myReaction.get(p.id) ?? null,
       bookmarked: user ? bookmarkedSet.has(p.id) : false,
+      imageUrl: path
+        ? supabase.storage.from("media").getPublicUrl(path).data.publicUrl
+        : undefined,
     } satisfies SamplePost;
   });
+}
+
+/**
+ * Trending posts: real posts created within the last `days` window, ranked by
+ * positive engagement. Reuses enrichPosts so reactions, bookmarks, and images
+ * work exactly as on the home feed.
+ */
+export async function fetchTrendingPosts(
+  supabase: SupabaseClient,
+  { days = 7, limit = 30 }: { days?: number; limit?: number } = {}
+): Promise<SamplePost[]> {
+  const sinceIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: posts } = await supabase
+    .from("posts")
+    .select("*")
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(limit)
+    .returns<Post[]>();
+
+  if (!posts || posts.length === 0) return [];
+
+  return rankByEngagement(await enrichPosts(supabase, posts));
 }
 
 /**
