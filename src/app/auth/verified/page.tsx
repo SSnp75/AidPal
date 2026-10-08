@@ -9,7 +9,7 @@ export default function VerifiedPage() {
     <div className="mx-auto w-full max-w-5xl px-4 py-8">
       <div className="mx-auto flex max-w-md flex-col items-center gap-6 py-16 text-center">
         <div
-          className="flex h-16 w-16 items-center justify-center rounded-full bg-teal-500/15 text-teal-400"
+          className="flex h-16 w-16 items-center justify-center rounded-full bg-success/15 text-success"
           aria-hidden="true"
         >
           <svg
@@ -27,7 +27,7 @@ export default function VerifiedPage() {
         </div>
 
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-teal-400">
+          <h1 className="text-2xl font-semibold text-success">
             Email verified
           </h1>
           <p className="text-sm text-foreground/70">
@@ -39,7 +39,7 @@ export default function VerifiedPage() {
         <div className="flex w-full flex-col gap-3">
           <Link
             href="/profile/edit"
-            className="w-full rounded-md bg-teal-500 px-4 py-2.5 text-center font-medium text-black transition-colors hover:bg-teal-400"
+            className="w-full rounded-md bg-accent px-4 py-2.5 text-center font-medium text-white transition-colors hover:bg-accent-light"
           >
             Complete your profile
           </Link>

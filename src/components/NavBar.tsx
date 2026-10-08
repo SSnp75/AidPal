@@ -17,14 +17,14 @@ export default async function NavBar() {
   }
 
   return (
-    <header className="border-b border-border bg-secondary">
+    <header className="border-b border-border bg-card shadow-sm">
       <nav
-        className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3"
+        className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-3"
         aria-label="Main navigation"
       >
         <Link
           href="/"
-          className="text-xl font-bold text-accent transition-colors hover:text-accent-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-secondary"
+          className="text-xl font-bold text-text-primary transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
         >
           AidPal
         </Link>
@@ -33,7 +33,7 @@ export default async function NavBar() {
           <li>
             <Link
               href="/groups"
-              className="text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-secondary"
+              className="text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
             >
               Groups
             </Link>
@@ -44,7 +44,7 @@ export default async function NavBar() {
               <li>
                 <Link
                   href="/profile"
-                  className="text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-secondary"
+                  className="text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                 >
                   Profile
                 </Link>
@@ -58,7 +58,7 @@ export default async function NavBar() {
                 >
                   <button
                     type="submit"
-                    className="text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-secondary"
+                    className="text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                   >
                     Logout
                   </button>
@@ -69,7 +69,7 @@ export default async function NavBar() {
             <li>
               <Link
                 href="/login"
-                className="rounded bg-accent px-3 py-1.5 text-white transition-colors hover:bg-accent-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-secondary"
+                className="rounded bg-accent px-3 py-1.5 text-white transition-colors hover:bg-accent-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
               >
                 Login
               </Link>

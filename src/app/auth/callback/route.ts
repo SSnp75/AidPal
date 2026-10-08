@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Build a Supabase client that can write cookies on this response.
-  const redirectUrl = new URL("/profile/edit", request.url);
+  const redirectUrl = new URL("/auth/verified", request.url);
   const response = NextResponse.redirect(redirectUrl);
 
   const supabase = createServerClient(config.url, config.anonKey, {
