@@ -65,7 +65,18 @@ export type ActivityVerb =
   | "reacted"
   | "joined_group"
   | "created_group"
-  | "bookmarked";
+  | "bookmarked"
+  | "sent_friend_request"
+  | "accepted_friend";
+
+export interface Friendship {
+  user_low: string;
+  user_high: string;
+  requester_id: string;
+  status: "pending" | "accepted";
+  created_at: string;
+  responded_at: string | null;
+}
 
 export interface Bookmark {
   post_id: string;

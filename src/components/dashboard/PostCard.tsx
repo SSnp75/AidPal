@@ -41,6 +41,15 @@ export default function PostCard({ post }: { post: SamplePost }) {
         className="mt-3 whitespace-pre-wrap text-text-primary leading-relaxed"
       />
 
+      {/* Post image — only when the post actually has one (EC-9) */}
+      {post.imageUrl && (
+        <img
+          src={post.imageUrl}
+          alt={`Image posted by ${post.authorName}`}
+          className="mt-3 w-full rounded-xl border border-border object-cover"
+        />
+      )}
+
       {/* Hashtags */}
       {post.hashtags.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">

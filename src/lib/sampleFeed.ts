@@ -19,6 +19,7 @@ export interface SamplePost {
   reactions: { like: number; love: number; dislike: number };
   myReaction: "like" | "love" | "dislike" | null;
   bookmarked: boolean;
+  imageUrl?: string; // public URL of the post's first image, when present
 }
 
 export interface TrendingItem {

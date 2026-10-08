@@ -77,15 +77,29 @@ create table if not exists public.bookmarks (
 create table if not exists public.activities (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references public.profiles(id) on delete cascade,
-  verb        text not null check (verb in ('created_post','commented','reacted','joined_group','created_group','bookmarked')),
+  verb        text not null check (verb in ('created_post','commented','reacted','joined_group','created_group','bookmarked','sent_friend_request','accepted_friend')),
   target_type text,
   target_id   uuid,
   group_id    uuid references public.groups(id) on delete set null,
   created_at  timestamptz not null default now()
 );
 
+create table if not exists public.friendships (
+  user_low     uuid not null references public.profiles(id) on delete cascade,
+  user_high    uuid not null references public.profiles(id) on delete cascade,
+  requester_id uuid not null references public.profiles(id) on delete cascade,
+  status       text not null default 'pending' check (status in ('pending','accepted')),
+  created_at   timestamptz not null default now(),
+  responded_at timestamptz,
+  primary key (user_low, user_high),
+  constraint friendships_canonical_order check (user_low < user_high),
+  constraint friendships_requester_is_party check (requester_id in (user_low, user_high))
+);
+
 create index if not exists bookmarks_user_created_idx on public.bookmarks (user_id, created_at desc);
 create index if not exists activities_user_created_idx on public.activities (user_id, created_at desc);
+create index if not exists friendships_user_high_idx on public.friendships (user_high);
+create index if not exists friendships_status_idx    on public.friendships (status);
 
 -- ═══════════════════════════════════════════════
 -- RLS: Enable on all tables
@@ -100,6 +114,7 @@ alter table public.comments      enable row level security;
 alter table public.reactions     enable row level security;
 alter table public.bookmarks     enable row level security;
 alter table public.activities    enable row level security;
+alter table public.friendships   enable row level security;
 
 -- ═══════════════════════════════════════════════
 -- Helper functions (SECURITY DEFINER)
@@ -157,6 +172,32 @@ as $$
     from posts p
     join group_members gm on gm.group_id = p.group_id
     where p.id = pid and gm.user_id = auth.uid()
+  );
+$$;
+
+-- least() / greatest() on uuid is well-defined (uuid has a total btree order).
+-- Pure, immutable, no table access → does NOT need security definer.
+create or replace function public.friend_pair(a uuid, b uuid)
+returns table (user_low uuid, user_high uuid)
+language sql
+immutable
+set search_path = public
+as $$
+  select least(a, b), greatest(a, b);
+$$;
+
+create or replace function public.are_friends(a uuid, b uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from friendships f
+    where f.user_low = least(a, b)
+      and f.user_high = greatest(a, b)
+      and f.status = 'accepted'
   );
 $$;
 
@@ -350,6 +391,45 @@ create policy activities_select on public.activities
 create policy activities_insert on public.activities
   for insert to authenticated with check (user_id = auth.uid());
 
+-- ── friendships ──
+-- One row per unordered pair (user_low < user_high); either party may read
+-- or delete; only the requester may insert a pending row; only the addressee
+-- (the non-requester party) may transition pending → accepted.
+drop policy if exists friendships_select on public.friendships;
+drop policy if exists friendships_insert on public.friendships;
+drop policy if exists friendships_update on public.friendships;
+drop policy if exists friendships_delete on public.friendships;
+
+create policy friendships_select on public.friendships
+  for select to authenticated
+  using (auth.uid() in (user_low, user_high));
+
+create policy friendships_insert on public.friendships
+  for insert to authenticated
+  with check (
+    requester_id = auth.uid()
+    and auth.uid() in (user_low, user_high)
+    and user_low < user_high
+    and status = 'pending'
+  );
+
+create policy friendships_update on public.friendships
+  for update to authenticated
+  using (
+    auth.uid() in (user_low, user_high)
+    and auth.uid() <> requester_id
+    and status = 'pending'
+  )
+  with check (
+    auth.uid() in (user_low, user_high)
+    and auth.uid() <> requester_id
+    and status = 'accepted'
+  );
+
+create policy friendships_delete on public.friendships
+  for delete to authenticated
+  using (auth.uid() in (user_low, user_high));
+
 -- ═══════════════════════════════════════════════
 -- Storage: media bucket + policies
 -- ═══════════════════════════════════════════════
@@ -499,3 +579,107 @@ create policy activities_select on public.activities
   for select to authenticated using (user_id = auth.uid());
 create policy activities_insert on public.activities
   for insert to authenticated with check (user_id = auth.uid());
+
+-- ============================================================
+-- INCREMENTAL MIGRATION: add friendships + verb extension
+-- Run ONCE in the Supabase SQL editor. Touches no existing data;
+-- safe to re-run. References only pre-existing objects (profiles,
+-- activities) plus the new friendships table it creates.
+-- ============================================================
+
+-- 1. Table (no-op if present).
+create table if not exists public.friendships (
+  user_low     uuid not null references public.profiles(id) on delete cascade,
+  user_high    uuid not null references public.profiles(id) on delete cascade,
+  requester_id uuid not null references public.profiles(id) on delete cascade,
+  status       text not null default 'pending' check (status in ('pending','accepted')),
+  created_at   timestamptz not null default now(),
+  responded_at timestamptz,
+  primary key (user_low, user_high),
+  constraint friendships_canonical_order check (user_low < user_high),
+  constraint friendships_requester_is_party check (requester_id in (user_low, user_high))
+);
+
+-- 2. Indexes (no-op if present).
+create index if not exists friendships_user_high_idx on public.friendships (user_high);
+create index if not exists friendships_status_idx    on public.friendships (status);
+
+-- 3. Enable RLS.
+alter table public.friendships enable row level security;
+
+-- 4. Helpers (create or replace = safe to re-run).
+create or replace function public.friend_pair(a uuid, b uuid)
+returns table (user_low uuid, user_high uuid)
+language sql
+immutable
+set search_path = public
+as $$
+  select least(a, b), greatest(a, b);
+$$;
+
+create or replace function public.are_friends(a uuid, b uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from friendships f
+    where f.user_low = least(a, b)
+      and f.user_high = greatest(a, b)
+      and f.status = 'accepted'
+  );
+$$;
+
+-- 5. Policies (drop-then-create = safe to re-run).
+drop policy if exists friendships_select on public.friendships;
+drop policy if exists friendships_insert on public.friendships;
+drop policy if exists friendships_update on public.friendships;
+drop policy if exists friendships_delete on public.friendships;
+
+create policy friendships_select on public.friendships
+  for select to authenticated
+  using (auth.uid() in (user_low, user_high));
+
+create policy friendships_insert on public.friendships
+  for insert to authenticated
+  with check (
+    requester_id = auth.uid()
+    and auth.uid() in (user_low, user_high)
+    and user_low < user_high
+    and status = 'pending'
+  );
+
+create policy friendships_update on public.friendships
+  for update to authenticated
+  using (
+    auth.uid() in (user_low, user_high)
+    and auth.uid() <> requester_id
+    and status = 'pending'
+  )
+  with check (
+    auth.uid() in (user_low, user_high)
+    and auth.uid() <> requester_id
+    and status = 'accepted'
+  );
+
+create policy friendships_delete on public.friendships
+  for delete to authenticated
+  using (auth.uid() in (user_low, user_high));
+
+-- 6. activities.verb CHECK extension — guarded drop + add
+--    (a CHECK is not create-if-not-exists). Idempotent: dropping a
+--    missing constraint is tolerated via IF EXISTS; the add re-creates
+--    the full 8-verb list. The constraint name "activities_verb_check"
+--    is Postgres's default for an inline column CHECK. VERIFY the actual
+--    name against the live DB before running and substitute if it differs:
+--      select conname from pg_constraint
+--      where conrelid = 'public.activities'::regclass and contype = 'c';
+--    A wrong name makes the drop a silent no-op and the add fails on duplicate.
+alter table public.activities drop constraint if exists activities_verb_check;
+alter table public.activities add constraint activities_verb_check
+  check (verb in (
+    'created_post','commented','reacted','joined_group','created_group','bookmarked',
+    'sent_friend_request','accepted_friend'
+  ));

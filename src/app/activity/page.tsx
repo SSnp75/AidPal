@@ -84,6 +84,10 @@ export default async function ActivityPage() {
         return <>You created the group {ref ?? "a group"}</>;
       case "bookmarked":
         return <>You saved a post</>;
+      case "sent_friend_request":
+        return <>You sent a friend request</>;
+      case "accepted_friend":
+        return <>You accepted a friend request</>;
       default:
         return <>You did something</>;
     }
