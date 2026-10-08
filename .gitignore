@@ -45,6 +45,10 @@ yarn-error.log*
 .dev.vars
 .wrangler/
 
+# workflow process artifacts and scratch
+/.agents/
+/Pictures/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
