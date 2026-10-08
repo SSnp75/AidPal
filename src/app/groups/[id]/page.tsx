@@ -189,7 +189,7 @@ export default async function GroupDetailPage({
                 return (
                   <li
                     key={post.id}
-                    className="rounded-xl border border-gray-800 bg-gray-900/50 p-4"
+                    className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900/50 p-4"
                   >
                     <p className="text-xs text-gray-500 mb-2">{authorName}</p>
 
@@ -201,7 +201,7 @@ export default async function GroupDetailPage({
                       <img
                         src={publicUrl(media.storage_path)}
                         alt={`Image posted by ${authorName} in ${group.name}`}
-                        className="rounded-lg max-h-96 w-auto border border-gray-800 mb-3"
+                        className="mb-3 -mx-4 w-[calc(100%+2rem)] max-w-none max-h-[42rem] object-cover"
                       />
                     )}
 

@@ -11,7 +11,7 @@ const engagementBtn =
 
 export default function PostCard({ post }: { post: SamplePost }) {
   return (
-    <article className="rounded-2xl border border-border bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+    <article className="overflow-hidden rounded-2xl border border-border bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
       {/* Author row */}
       <div className="flex items-start gap-3">
         <Avatar name={post.authorName} />
@@ -41,12 +41,12 @@ export default function PostCard({ post }: { post: SamplePost }) {
         className="mt-3 whitespace-pre-wrap text-text-primary leading-relaxed"
       />
 
-      {/* Post image — only when the post actually has one (EC-9) */}
+      {/* Post image — edge-to-edge (full-bleed), only when present (EC-9) */}
       {post.imageUrl && (
         <img
           src={post.imageUrl}
           alt={`Image posted by ${post.authorName}`}
-          className="mt-3 w-full rounded-xl border border-border object-cover"
+          className="mt-3 -mx-5 w-[calc(100%+2.5rem)] max-w-none max-h-[42rem] object-cover"
         />
       )}
 
