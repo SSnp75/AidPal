@@ -77,7 +77,10 @@ create table if not exists public.bookmarks (
 create table if not exists public.activities (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references public.profiles(id) on delete cascade,
-  verb        text not null check (verb in ('created_post','commented','reacted','joined_group','created_group','bookmarked','sent_friend_request','accepted_friend')),
+  verb        text not null check (verb in (
+    'created_post','commented','reacted','joined_group','created_group','bookmarked',
+    'sent_friend_request','accepted_friend','created_event','volunteered_for_event'
+  )),
   target_type text,
   target_id   uuid,
   group_id    uuid references public.groups(id) on delete set null,
@@ -96,10 +99,53 @@ create table if not exists public.friendships (
   constraint friendships_requester_is_party check (requester_id in (user_low, user_high))
 );
 
+-- ── events ──
+create table if not exists public.events (
+  id          uuid primary key default gen_random_uuid(),
+  creator_id  uuid not null references public.profiles(id) on delete cascade,
+  group_id    uuid references public.groups(id) on delete cascade,
+  scope       text not null check (scope in ('individual','group','public')),
+  title       text not null check (char_length(title) between 1 and 120),
+  description text check (description is null or char_length(description) <= 2000),
+  location    text check (location is null or char_length(location) <= 200),
+  starts_at   timestamptz,
+  ends_at     timestamptz,
+  created_at  timestamptz not null default now(),
+  constraint events_scope_group_chk check (
+    (scope = 'group'                 and group_id is not null) or
+    (scope in ('individual','public') and group_id is null)
+  )
+);
+
+-- ── event_tasks ──
+create table if not exists public.event_tasks (
+  id          uuid primary key default gen_random_uuid(),
+  event_id    uuid not null references public.events(id) on delete cascade,
+  title       text not null check (char_length(title) between 1 and 200),
+  status      text not null default 'todo' check (status in ('todo','in_progress','done')),
+  assignee_id uuid references public.profiles(id) on delete set null,
+  created_by  uuid not null references public.profiles(id) on delete cascade,
+  created_at  timestamptz not null default now()
+);
+
+-- ── event_volunteers ──
+create table if not exists public.event_volunteers (
+  event_id   uuid not null references public.events(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  role       text check (role is null or char_length(role) <= 100),
+  created_at timestamptz not null default now(),
+  primary key (event_id, user_id)
+);
+
 create index if not exists bookmarks_user_created_idx on public.bookmarks (user_id, created_at desc);
 create index if not exists activities_user_created_idx on public.activities (user_id, created_at desc);
 create index if not exists friendships_user_high_idx on public.friendships (user_high);
 create index if not exists friendships_status_idx    on public.friendships (status);
+create index if not exists events_group_id_idx       on public.events (group_id);
+create index if not exists events_creator_id_idx     on public.events (creator_id);
+create index if not exists events_starts_at_idx      on public.events (starts_at);
+create index if not exists event_tasks_event_id_idx  on public.event_tasks (event_id);
+create index if not exists event_volunteers_user_idx on public.event_volunteers (user_id);
 
 -- ═══════════════════════════════════════════════
 -- RLS: Enable on all tables
@@ -115,6 +161,9 @@ alter table public.reactions     enable row level security;
 alter table public.bookmarks     enable row level security;
 alter table public.activities    enable row level security;
 alter table public.friendships   enable row level security;
+alter table public.events           enable row level security;
+alter table public.event_tasks      enable row level security;
+alter table public.event_volunteers enable row level security;
 
 -- ═══════════════════════════════════════════════
 -- Helper functions (SECURITY DEFINER)
@@ -172,6 +221,85 @@ as $$
     from posts p
     join group_members gm on gm.group_id = p.group_id
     where p.id = pid and gm.user_id = auth.uid()
+  );
+$$;
+
+-- ── Event authorization helpers ──
+-- RLS RECURSION / ACYCLIC POLICY GRAPH (NFR-3, AC-8):
+--   events SELECT policy            → can_read_event(id)
+--   event_tasks SELECT policy       → can_read_event(event_id)
+--   event_volunteers SELECT policy  → can_read_event(event_id)
+--   can_read_event body             → reads base events / event_tasks /
+--                                      event_volunteers / groups / group_members
+-- Because can_read_event and can_manage_event are SECURITY DEFINER, their
+-- bodies run as the function owner with RLS BYPASSED, so the subselects on
+-- event_tasks / event_volunteers do NOT re-enter those tables' SELECT policies.
+-- No policy therefore transitively invokes itself → the graph is acyclic and
+-- Postgres never raises "infinite recursion detected in policy". The nested
+-- can_read_group call (group branch) is itself security definer and references
+-- no event table, so it introduces no new cycle. This mirrors how can_read_post
+-- selects from posts despite posts having its own SELECT policy.
+--
+-- Four-persona manual verification (run once in the Supabase SQL editor, NOT
+-- executed here) — for each scope individual/group/public, confirm the read
+-- matrix for creator / assignee / volunteer / outsider and that no call raises
+-- "infinite recursion detected in policy" (see design.md §2.3/§2.4):
+--   select can_read_event(:eid);   -- as each persona
+--   select can_manage_event(:eid); -- as each persona
+create or replace function public.can_read_event(eid uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from events e
+    where e.id = eid
+      and (
+        -- public: any authenticated caller
+        (e.scope = 'public' and auth.uid() is not null)
+        -- group: delegate entirely to the group's own visibility rule
+        or (e.scope = 'group' and public.can_read_group(e.group_id))
+        -- individual: creator, OR assignee on one of its tasks, OR a volunteer
+        or (
+          e.scope = 'individual' and (
+            e.creator_id = auth.uid()
+            or exists (
+              select 1 from event_tasks t
+              where t.event_id = e.id and t.assignee_id = auth.uid()
+            )
+            or exists (
+              select 1 from event_volunteers v
+              where v.event_id = e.id and v.user_id = auth.uid()
+            )
+          )
+        )
+      )
+  );
+$$;
+
+create or replace function public.can_manage_event(eid uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from events e
+    where e.id = eid
+      and (
+        e.creator_id = auth.uid()
+        or (
+          e.scope = 'group' and exists (
+            select 1 from group_members gm
+            where gm.group_id = e.group_id
+              and gm.user_id = auth.uid()
+              and gm.role = 'owner'
+          )
+        )
+      )
   );
 $$;
 
@@ -430,6 +558,74 @@ create policy friendships_delete on public.friendships
   for delete to authenticated
   using (auth.uid() in (user_low, user_high));
 
+-- ── events ──
+-- Every SELECT routes through can_read_event; management through
+-- can_manage_event. No direct events/groups/profiles subselect; no anon grant.
+drop policy if exists events_select on public.events;
+drop policy if exists events_insert on public.events;
+drop policy if exists events_update on public.events;
+drop policy if exists events_delete on public.events;
+
+create policy events_select on public.events
+  for select to authenticated using (public.can_read_event(id));
+
+create policy events_insert on public.events
+  for insert to authenticated
+  with check (
+    creator_id = auth.uid()
+    and (
+      (scope in ('individual','public') and group_id is null)
+      or (scope = 'group' and group_id is not null and public.is_group_member(group_id))
+    )
+  );
+
+create policy events_update on public.events
+  for update to authenticated
+  using (public.can_manage_event(id))
+  with check (public.can_manage_event(id));
+
+create policy events_delete on public.events
+  for delete to authenticated using (public.can_manage_event(id));
+
+-- ── event_tasks ──
+drop policy if exists event_tasks_select on public.event_tasks;
+drop policy if exists event_tasks_insert on public.event_tasks;
+drop policy if exists event_tasks_update on public.event_tasks;
+drop policy if exists event_tasks_delete on public.event_tasks;
+
+create policy event_tasks_select on public.event_tasks
+  for select to authenticated using (public.can_read_event(event_id));
+
+create policy event_tasks_insert on public.event_tasks
+  for insert to authenticated
+  with check (created_by = auth.uid() and public.can_manage_event(event_id));
+
+create policy event_tasks_update on public.event_tasks
+  for update to authenticated
+  using (public.can_manage_event(event_id))
+  with check (public.can_manage_event(event_id));
+
+create policy event_tasks_delete on public.event_tasks
+  for delete to authenticated using (public.can_manage_event(event_id));
+
+-- ── event_volunteers ──
+-- Insert is self-only + can_read_event (gate the volunteer to a readable
+-- event); delete is self-only (a user may always withdraw their own row).
+-- No UPDATE policy — volunteering is insert-or-delete only (like bookmarks).
+drop policy if exists event_volunteers_select on public.event_volunteers;
+drop policy if exists event_volunteers_insert on public.event_volunteers;
+drop policy if exists event_volunteers_delete on public.event_volunteers;
+
+create policy event_volunteers_select on public.event_volunteers
+  for select to authenticated using (public.can_read_event(event_id));
+
+create policy event_volunteers_insert on public.event_volunteers
+  for insert to authenticated
+  with check (user_id = auth.uid() and public.can_read_event(event_id));
+
+create policy event_volunteers_delete on public.event_volunteers
+  for delete to authenticated using (user_id = auth.uid());
+
 -- ═══════════════════════════════════════════════
 -- Storage: media bucket + policies
 -- ═══════════════════════════════════════════════
@@ -682,4 +878,201 @@ alter table public.activities add constraint activities_verb_check
   check (verb in (
     'created_post','commented','reacted','joined_group','created_group','bookmarked',
     'sent_friend_request','accepted_friend'
+  ));
+
+-- ============================================================
+-- INCREMENTAL MIGRATION: add events + event_tasks + event_volunteers
+-- Run ONCE in the Supabase SQL editor. Touches no existing data;
+-- safe to re-run. References only pre-existing objects (profiles,
+-- groups, group_members, activities, can_read_group, is_group_member)
+-- plus the new objects it creates.
+-- ============================================================
+
+-- 1. Tables (no-op if already present).
+create table if not exists public.events (
+  id          uuid primary key default gen_random_uuid(),
+  creator_id  uuid not null references public.profiles(id) on delete cascade,
+  group_id    uuid references public.groups(id) on delete cascade,
+  scope       text not null check (scope in ('individual','group','public')),
+  title       text not null check (char_length(title) between 1 and 120),
+  description text check (description is null or char_length(description) <= 2000),
+  location    text check (location is null or char_length(location) <= 200),
+  starts_at   timestamptz,
+  ends_at     timestamptz,
+  created_at  timestamptz not null default now(),
+  constraint events_scope_group_chk check (
+    (scope = 'group'                 and group_id is not null) or
+    (scope in ('individual','public') and group_id is null)
+  )
+);
+
+create table if not exists public.event_tasks (
+  id          uuid primary key default gen_random_uuid(),
+  event_id    uuid not null references public.events(id) on delete cascade,
+  title       text not null check (char_length(title) between 1 and 200),
+  status      text not null default 'todo' check (status in ('todo','in_progress','done')),
+  assignee_id uuid references public.profiles(id) on delete set null,
+  created_by  uuid not null references public.profiles(id) on delete cascade,
+  created_at  timestamptz not null default now()
+);
+
+create table if not exists public.event_volunteers (
+  event_id   uuid not null references public.events(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  role       text check (role is null or char_length(role) <= 100),
+  created_at timestamptz not null default now(),
+  primary key (event_id, user_id)
+);
+
+-- 2. Indexes (no-op if already present).
+create index if not exists events_group_id_idx       on public.events (group_id);
+create index if not exists events_creator_id_idx     on public.events (creator_id);
+create index if not exists events_starts_at_idx      on public.events (starts_at);
+create index if not exists event_tasks_event_id_idx  on public.event_tasks (event_id);
+create index if not exists event_volunteers_user_idx on public.event_volunteers (user_id);
+
+-- 3. Enable RLS.
+alter table public.events           enable row level security;
+alter table public.event_tasks      enable row level security;
+alter table public.event_volunteers enable row level security;
+
+-- 4. Helpers (create or replace = safe to re-run). Both SECURITY DEFINER so
+--    their bodies read base tables with RLS bypassed → the event_tasks /
+--    event_volunteers SELECT policies (which call can_read_event) are never
+--    re-entered, so no "infinite recursion detected in policy" (design.md §2.3).
+create or replace function public.can_read_event(eid uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from events e
+    where e.id = eid
+      and (
+        (e.scope = 'public' and auth.uid() is not null)
+        or (e.scope = 'group' and public.can_read_group(e.group_id))
+        or (
+          e.scope = 'individual' and (
+            e.creator_id = auth.uid()
+            or exists (
+              select 1 from event_tasks t
+              where t.event_id = e.id and t.assignee_id = auth.uid()
+            )
+            or exists (
+              select 1 from event_volunteers v
+              where v.event_id = e.id and v.user_id = auth.uid()
+            )
+          )
+        )
+      )
+  );
+$$;
+
+create or replace function public.can_manage_event(eid uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from events e
+    where e.id = eid
+      and (
+        e.creator_id = auth.uid()
+        or (
+          e.scope = 'group' and exists (
+            select 1 from group_members gm
+            where gm.group_id = e.group_id
+              and gm.user_id = auth.uid()
+              and gm.role = 'owner'
+          )
+        )
+      )
+  );
+$$;
+
+-- 5. Policies (drop-then-create = safe to re-run). Every SELECT routes through
+--    can_read_event; management through can_manage_event. No direct
+--    events/groups/profiles subselect in any policy; no anon grant.
+drop policy if exists events_select on public.events;
+drop policy if exists events_insert on public.events;
+drop policy if exists events_update on public.events;
+drop policy if exists events_delete on public.events;
+
+create policy events_select on public.events
+  for select to authenticated using (public.can_read_event(id));
+
+create policy events_insert on public.events
+  for insert to authenticated
+  with check (
+    creator_id = auth.uid()
+    and (
+      (scope in ('individual','public') and group_id is null)
+      or (scope = 'group' and group_id is not null and public.is_group_member(group_id))
+    )
+  );
+
+create policy events_update on public.events
+  for update to authenticated
+  using (public.can_manage_event(id))
+  with check (public.can_manage_event(id));
+
+create policy events_delete on public.events
+  for delete to authenticated using (public.can_manage_event(id));
+
+drop policy if exists event_tasks_select on public.event_tasks;
+drop policy if exists event_tasks_insert on public.event_tasks;
+drop policy if exists event_tasks_update on public.event_tasks;
+drop policy if exists event_tasks_delete on public.event_tasks;
+
+create policy event_tasks_select on public.event_tasks
+  for select to authenticated using (public.can_read_event(event_id));
+
+create policy event_tasks_insert on public.event_tasks
+  for insert to authenticated
+  with check (created_by = auth.uid() and public.can_manage_event(event_id));
+
+create policy event_tasks_update on public.event_tasks
+  for update to authenticated
+  using (public.can_manage_event(event_id))
+  with check (public.can_manage_event(event_id));
+
+create policy event_tasks_delete on public.event_tasks
+  for delete to authenticated using (public.can_manage_event(event_id));
+
+drop policy if exists event_volunteers_select on public.event_volunteers;
+drop policy if exists event_volunteers_insert on public.event_volunteers;
+drop policy if exists event_volunteers_delete on public.event_volunteers;
+
+create policy event_volunteers_select on public.event_volunteers
+  for select to authenticated using (public.can_read_event(event_id));
+
+create policy event_volunteers_insert on public.event_volunteers
+  for insert to authenticated
+  with check (user_id = auth.uid() and public.can_read_event(event_id));
+
+create policy event_volunteers_delete on public.event_volunteers
+  for delete to authenticated using (user_id = auth.uid());
+
+-- 6. activities.verb CHECK extension — guarded drop + add (a CHECK is NOT
+--    create-if-not-exists). The ADD list is the UNION of the current live verbs
+--    and the two new ones (10 verbs total); it must NOT drop any live verb or the
+--    ADD fails (23514) against existing rows. Run this AFTER the friendships+verb
+--    migration; it is still safe before it (this list supersedes that one — it
+--    installs the full 10-verb constraint in one step).
+--
+--    The constraint name "activities_verb_check" is Postgres's default for the
+--    inline column CHECK. VERIFY the actual name against the live DB before
+--    running and substitute if it differs — a WRONG name makes the drop a silent
+--    no-op and the add then fails on duplicate:
+--      select conname from pg_constraint
+--      where conrelid = 'public.activities'::regclass and contype = 'c';
+alter table public.activities drop constraint if exists activities_verb_check;
+alter table public.activities add constraint activities_verb_check
+  check (verb in (
+    'created_post','commented','reacted','joined_group','created_group','bookmarked',
+    'sent_friend_request','accepted_friend','created_event','volunteered_for_event'
   ));

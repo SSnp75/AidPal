@@ -1,6 +1,6 @@
 /** Pure validation helpers — no network, no side effects. */
 
-import type { ReactionType } from "@/types/db";
+import type { ReactionType, EventScope, TaskStatus } from "@/types/db";
 
 export type ValidationResult =
   | { ok: true }
@@ -136,6 +136,57 @@ export const REACTION_TYPES: readonly ReactionType[] = ["like", "love", "dislike
 
 export function isReactionType(raw: unknown): raw is ReactionType {
   return typeof raw === "string" && (REACTION_TYPES as readonly string[]).includes(raw);
+}
+
+export function validateEventTitle(raw: unknown): ValidationResult {
+  if (typeof raw !== "string" || raw.trim().length === 0)
+    return { ok: false, error: "Event title is required (1–120 characters)." };
+  if (raw.trim().length > 120)
+    return { ok: false, error: "Event title is required (1–120 characters)." };
+  return { ok: true };
+}
+
+export function validateEventDescription(raw: unknown): ValidationResult {
+  if (raw == null || raw === "") return { ok: true };
+  if (typeof raw !== "string" || raw.length > 2000)
+    return { ok: false, error: "Description must be 2000 characters or fewer." };
+  return { ok: true };
+}
+
+export function validateEventLocation(raw: unknown): ValidationResult {
+  if (raw == null || raw === "") return { ok: true };
+  if (typeof raw !== "string" || raw.length > 200)
+    return { ok: false, error: "Location must be 200 characters or fewer." };
+  return { ok: true };
+}
+
+export function validateEventTaskTitle(raw: unknown): ValidationResult {
+  if (typeof raw !== "string" || raw.trim().length === 0)
+    return { ok: false, error: "Task title is required (1–200 characters)." };
+  if (raw.trim().length > 200)
+    return { ok: false, error: "Task title is required (1–200 characters)." };
+  return { ok: true };
+}
+
+/**
+ * Allowed event scopes. Typed as `readonly EventScope[]` so the literal list
+ * is compiler-checked against the canonical union in `@/types/db` — the
+ * runtime list and the type can never silently diverge (mirrors REACTION_TYPES).
+ */
+export const EVENT_SCOPES: readonly EventScope[] = ["individual", "group", "public"];
+
+export function isEventScope(raw: unknown): raw is EventScope {
+  return typeof raw === "string" && (EVENT_SCOPES as readonly string[]).includes(raw);
+}
+
+/**
+ * Allowed task statuses. Typed as `readonly TaskStatus[]` so the literal list
+ * is compiler-checked against the canonical union in `@/types/db`.
+ */
+export const TASK_STATUSES: readonly TaskStatus[] = ["todo", "in_progress", "done"];
+
+export function isTaskStatus(raw: unknown): raw is TaskStatus {
+  return typeof raw === "string" && (TASK_STATUSES as readonly string[]).includes(raw);
 }
 
 /**

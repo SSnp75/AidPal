@@ -67,7 +67,42 @@ export type ActivityVerb =
   | "created_group"
   | "bookmarked"
   | "sent_friend_request"
-  | "accepted_friend";
+  | "accepted_friend"
+  | "created_event"
+  | "volunteered_for_event";
+
+export type EventScope = "individual" | "group" | "public";
+export type TaskStatus = "todo" | "in_progress" | "done";
+
+export interface Event {
+  id: string;
+  creator_id: string;
+  group_id: string | null;
+  scope: EventScope;
+  title: string;
+  description: string | null;
+  location: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_at: string;
+}
+
+export interface EventTask {
+  id: string;
+  event_id: string;
+  title: string;
+  status: TaskStatus;
+  assignee_id: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface EventVolunteer {
+  event_id: string;
+  user_id: string;
+  role: string | null;
+  created_at: string;
+}
 
 export interface Friendship {
   user_low: string;
