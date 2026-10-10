@@ -252,7 +252,7 @@ export default async function GroupDetailPage({
           {user && isMember && (
             <Link
               href={`/events/new?groupId=${group.id}`}
-              className="inline-flex items-center gap-2 rounded-lg border border-border bg-side-card px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card"
             >
               Create Event
             </Link>

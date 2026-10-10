@@ -1,9 +1,11 @@
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import SupabaseNotConfigured from "@/components/SupabaseNotConfigured";
 import LeftSidebar from "@/components/dashboard/LeftSidebar";
 import CenterFeed from "@/components/dashboard/CenterFeed";
 import RightSidebar from "@/components/dashboard/RightSidebar";
+import MyEventsPanel from "@/components/MyEventsPanel";
 import {
   samplePosts,
   sampleTrending,
@@ -119,12 +121,23 @@ export default async function HomePage() {
           latestPosts={useRealFeed ? latestPosts : samplePosts}
           trendingPosts={useRealFeed ? trendingPosts : []}
         />
-        <RightSidebar
-          trending={sampleTrending}
-          suggestions={sampleSuggestions}
-          createdGroups={createdGroups}
-          memberGroups={memberGroups}
-        />
+        <div className="hidden flex-col gap-6 min-[992px]:flex">
+          {/* Create Event button + the user's events (My / Interested / Volunteering) */}
+          <Link
+            href="/events/new"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+          >
+            Create Event
+          </Link>
+          <MyEventsPanel />
+
+          <RightSidebar
+            trending={sampleTrending}
+            suggestions={sampleSuggestions}
+            createdGroups={createdGroups}
+            memberGroups={memberGroups}
+          />
+        </div>
       </div>
     </div>
   );
