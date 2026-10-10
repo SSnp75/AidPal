@@ -7,6 +7,7 @@ import AddFriendButton from "./AddFriendButton";
 import RequestActions from "./RequestActions";
 import CancelRequestButton from "./CancelRequestButton";
 import RemoveFriendButton from "./RemoveFriendButton";
+import MessageFriendButton from "./MessageFriendButton";
 import FriendsSearch from "./FriendsSearch";
 import type { Friendship, Profile } from "@/types/db";
 
@@ -110,7 +111,10 @@ export default async function FriendsPage({
                     <Avatar name={name} />
                     <span className="text-text-primary">{name}</span>
                   </div>
-                  <RemoveFriendButton userId={id} name={name} />
+                  <div className="flex items-center gap-2">
+                    <MessageFriendButton userId={id} name={name} />
+                    <RemoveFriendButton userId={id} name={name} />
+                  </div>
                 </li>
               );
             })}

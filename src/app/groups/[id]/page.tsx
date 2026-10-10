@@ -11,6 +11,7 @@ import ShareButton from "@/components/ShareButton";
 import JoinButton from "@/components/JoinButton";
 import PostBody from "@/components/PostBody";
 import MyEventsPanel from "@/components/MyEventsPanel";
+import OpenGroupChatButton from "./OpenGroupChatButton";
 import type { Group, Post, Media, Comment, Profile, ReactionType } from "@/types/db";
 
 export default async function GroupDetailPage({
@@ -257,6 +258,8 @@ export default async function GroupDetailPage({
               Create Event
             </Link>
           )}
+
+          {user && isMember && <OpenGroupChatButton groupId={group.id} />}
 
           {/* The user's own/interested/volunteering events across ALL
               groups and scopes — not limited to this group. */}

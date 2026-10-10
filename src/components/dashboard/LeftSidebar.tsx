@@ -36,6 +36,13 @@ function FriendsIcon() {
     </svg>
   );
 }
+function MessagesIcon() {
+  return (
+    <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 11.5a8.4 8.4 0 0 1-9 8.3L3 21l1.2-4A8.4 8.4 0 1 1 21 11.5Z" />
+    </svg>
+  );
+}
 function GroupsIcon() {
   return (
     <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -156,6 +163,9 @@ export default function LeftSidebar({
           </li>
           <li>
             <NavLink href="/friends" icon={<FriendsIcon />} label="Friends" />
+          </li>
+          <li>
+            <NavLink href="/messages" icon={<MessagesIcon />} label="Messages" />
           </li>
           <li>
             <Link href="/groups" className={linkNavClass}>
