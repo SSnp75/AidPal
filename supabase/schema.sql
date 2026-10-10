@@ -370,6 +370,57 @@ end;
 $$;
 
 -- ═══════════════════════════════════════════════
+-- create_event RPC (server-side creator_id = auth.uid())
+-- ═══════════════════════════════════════════════
+-- Mirrors create_group: a SECURITY DEFINER insert so creator_id is stamped
+-- from auth.uid() server-side. This is the write path used by the
+-- createEvent server action (NOT a direct client insert, which the events
+-- RLS with-check rejected). For scope='group' it requires the caller to be a
+-- member of _group_id; for individual/public it forces group_id to null so
+-- the events_scope_group_chk constraint is satisfied.
+create or replace function public.create_event(
+  _scope text,
+  _title text,
+  _description text default null,
+  _location text default null,
+  _starts_at timestamptz default null,
+  _ends_at timestamptz default null,
+  _group_id uuid default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_id uuid;
+  gid uuid;
+begin
+  if _scope = 'group' then
+    if _group_id is null or not public.is_group_member(_group_id) then
+      raise exception 'not a member of group %', _group_id
+        using errcode = '42501';
+    end if;
+    gid := _group_id;
+  else
+    gid := null;
+  end if;
+
+  insert into events (
+    creator_id, group_id, scope, title, description, location,
+    starts_at, ends_at
+  )
+  values (
+    auth.uid(), gid, _scope, _title, _description, _location,
+    _starts_at, _ends_at
+  )
+  returning id into new_id;
+
+  return new_id;
+end;
+$$;
+
+-- ═══════════════════════════════════════════════
 -- RLS Policies
 -- ═══════════════════════════════════════════════
 
@@ -1109,14 +1160,66 @@ alter table public.activities add constraint activities_verb_check
   ));
 
 -- ============================================================
--- INCREMENTAL MIGRATION: add event_interests
+-- INCREMENTAL MIGRATION: add create_event + event_interests
 -- Run ONCE in the Supabase SQL editor. Touches no existing data;
--- safe to re-run. References only pre-existing objects
--- (events, profiles, can_read_event) plus the table it creates.
--- No activities.verb change — interest is intentionally NOT logged.
--- Write path is a DIRECT self-scoped insert/delete (no RPC); the
--- self-scoped insert policy below is satisfiable by the caller's JWT.
+-- safe to re-run (create-or-replace function; create-if-not-exists
+-- table; drop/create policies). References only pre-existing objects
+-- (events, profiles, groups, is_group_member, can_read_event) plus the
+-- table it creates.
+--
+-- 1) create_event — SECURITY DEFINER insert that stamps creator_id =
+--    auth.uid() server-side. This is the createEvent write path (the
+--    direct client insert was rejected by the events RLS with-check,
+--    which is what made newly created events "go missing"). For
+--    scope='group' it requires group membership; otherwise group_id is
+--    forced null to satisfy events_scope_group_chk.
+-- 2) event_interests — per-user "Interested" flag. No activities.verb
+--    change (interest is intentionally NOT logged). Its write path is a
+--    DIRECT self-scoped insert/delete (no RPC); the self-scoped insert
+--    policy below is satisfiable by the caller's own JWT.
 -- ============================================================
+
+create or replace function public.create_event(
+  _scope text,
+  _title text,
+  _description text default null,
+  _location text default null,
+  _starts_at timestamptz default null,
+  _ends_at timestamptz default null,
+  _group_id uuid default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_id uuid;
+  gid uuid;
+begin
+  if _scope = 'group' then
+    if _group_id is null or not public.is_group_member(_group_id) then
+      raise exception 'not a member of group %', _group_id
+        using errcode = '42501';
+    end if;
+    gid := _group_id;
+  else
+    gid := null;
+  end if;
+
+  insert into events (
+    creator_id, group_id, scope, title, description, location,
+    starts_at, ends_at
+  )
+  values (
+    auth.uid(), gid, _scope, _title, _description, _location,
+    _starts_at, _ends_at
+  )
+  returning id into new_id;
+
+  return new_id;
+end;
+$$;
 
 create table if not exists public.event_interests (
   event_id   uuid not null references public.events(id)   on delete cascade,

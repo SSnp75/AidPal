@@ -108,34 +108,34 @@ export async function createEvent(
   const location =
     typeof rawLocation === "string" ? rawLocation.trim() || null : null;
 
-  const { data, error } = await supabase
-    .from("events")
-    .insert({
-      creator_id: user.id,
-      scope,
-      group_id: groupId,
-      title,
-      description,
-      location,
-      starts_at: startsAt,
-      ends_at: endsAt,
-    })
-    .select("id")
-    .single<{ id: string }>();
+  // Insert via the create_event SECURITY DEFINER RPC (mirrors create_group),
+  // which sets creator_id = auth.uid() server-side and avoids the RLS
+  // with-check mismatch that blocked the direct client insert.
+  const { data, error } = await supabase.rpc("create_event", {
+    _scope: scope,
+    _title: title,
+    _description: description,
+    _location: location,
+    _starts_at: startsAt,
+    _ends_at: endsAt,
+    _group_id: groupId,
+  });
 
-  if (error) {
-    console.error("[createEvent]", error.message);
+  const newId = typeof data === "string" ? data : null;
+
+  if (error || !newId) {
+    console.error("[createEvent]", error?.message ?? "no id returned");
     return { ok: false, error: "Could not create event. Try again." };
   }
 
   await logActivity(supabase, user.id, "created_event", {
     targetType: "event",
-    targetId: data.id,
+    targetId: newId,
     groupId: scope === "group" ? groupId : null,
   });
 
   revalidatePath("/events");
-  redirect("/events/" + data.id);
+  redirect("/events/" + newId);
 }
 
 /* ── updateEvent ──
