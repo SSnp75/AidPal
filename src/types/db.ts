@@ -104,6 +104,12 @@ export interface EventVolunteer {
   created_at: string;
 }
 
+export interface EventInterest {
+  event_id: string;
+  user_id: string;
+  created_at: string;
+}
+
 export interface Friendship {
   user_low: string;
   user_high: string;

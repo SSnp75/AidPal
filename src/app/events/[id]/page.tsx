@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import SupabaseNotConfigured from "@/components/SupabaseNotConfigured";
 import ScopeBadge from "@/components/ScopeBadge";
 import VolunteerButton from "@/components/VolunteerButton";
+import InterestButton from "@/components/InterestButton";
 import TaskStatusControl from "@/components/TaskStatusControl";
 import { addTask, assignTask, deleteTask } from "@/app/events/actions";
 import type { Event, EventTask, TaskStatus, Profile } from "@/types/db";
@@ -109,6 +110,18 @@ export default async function EventDetailPage({
   const initialVolunteering = viewer
     ? volunteers.some((v) => v.user_id === viewer.id)
     : false;
+
+  // Interest is a separate self-scoped flag — a standalone read after getUser()
+  // (viewer is not in scope inside the earlier Promise.all).
+  const { data: interestRow } = viewer
+    ? await supabase
+        .from("event_interests")
+        .select("user_id")
+        .eq("event_id", id)
+        .eq("user_id", viewer.id)
+        .maybeSingle<{ user_id: string }>()
+    : { data: null };
+  const initialInterested = Boolean(interestRow);
 
   // ── Server actions for the plain form/button controls (manager-gated by RLS) ──
   async function addTaskAction(formData: FormData) {
@@ -215,10 +228,16 @@ export default async function EventDetailPage({
           <h2 className="text-lg font-semibold text-text-primary">
             Volunteers
           </h2>
-          <VolunteerButton
-            eventId={event.id}
-            initialVolunteering={initialVolunteering}
-          />
+          <div className="flex items-center gap-2">
+            <VolunteerButton
+              eventId={event.id}
+              initialVolunteering={initialVolunteering}
+            />
+            <InterestButton
+              eventId={event.id}
+              initialInterested={initialInterested}
+            />
+          </div>
         </div>
         {volunteers.length === 0 ? (
           <p className="mt-3 text-sm text-text-secondary">No volunteers yet.</p>

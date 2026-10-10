@@ -10,6 +10,7 @@ import BookmarkButton from "@/components/BookmarkButton";
 import ShareButton from "@/components/ShareButton";
 import JoinButton from "@/components/JoinButton";
 import PostBody from "@/components/PostBody";
+import MyEventsPanel from "@/components/MyEventsPanel";
 import type { Group, Post, Media, Comment, Profile, ReactionType } from "@/types/db";
 
 export default async function GroupDetailPage({
@@ -138,8 +139,9 @@ export default async function GroupDetailPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8">
-      <div className="space-y-6">
+    <div className="mx-auto w-full max-w-6xl px-4 py-8">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_20rem]">
+        <main className="min-w-0 space-y-6">
         <header>
           <h1 className="text-2xl font-bold text-teal-400">{group.name}</h1>
           {group.is_private && (
@@ -151,16 +153,6 @@ export default async function GroupDetailPage({
             <p className="mt-2 text-gray-300">{group.description}</p>
           )}
         </header>
-
-        {/* Member-only Create Event entry (additive — muted tokens). */}
-        {user && isMember && (
-          <Link
-            href={`/events/new?groupId=${group.id}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-side-card px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card"
-          >
-            Create Event
-          </Link>
-        )}
 
         {/* Join / Post controls */}
         {user ? (
@@ -252,6 +244,24 @@ export default async function GroupDetailPage({
             </ul>
           )}
         </section>
+        </main>
+
+        <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
+          {/* Member-only Create Event entry — relocated to the right sidebar
+              (additive — muted tokens). */}
+          {user && isMember && (
+            <Link
+              href={`/events/new?groupId=${group.id}`}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-side-card px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+            >
+              Create Event
+            </Link>
+          )}
+
+          {/* The user's own/interested/volunteering events across ALL
+              groups and scopes — not limited to this group. */}
+          {user && <MyEventsPanel />}
+        </aside>
       </div>
     </div>
   );

@@ -586,3 +586,96 @@ export async function withdrawVolunteer({
   revalidatePath("/events/" + eventId);
   return { ok: true, volunteering: false };
 }
+
+/* ── markInterested / unmarkInterested ──
+ * Per-user "Interested" flag, independent of volunteering and NOT logged to
+ * the activity feed (no activities.verb change — see design §2.3). Guard/auth/
+ * zero-row shape mirrors the volunteer pair, but the revalidation set diverges:
+ * both actions revalidate /events AND /events/{id} (so MyEventsPanel refreshes)
+ * and never /activity. */
+
+export type InterestResult =
+  | { ok: true; interested: boolean }
+  | { ok: false; error: string };
+
+export async function markInterested({
+  eventId,
+}: {
+  eventId: string;
+}): Promise<InterestResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(eventId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false, error: "Sign in to mark interest." };
+  }
+
+  // Direct self-scoped upsert — the RLS insert policy is
+  // (user_id = auth.uid() AND can_read_event(event_id)), so the caller's
+  // own JWT satisfies the with-check; no RPC needed. See schema
+  // event_interests_insert. (Fall back to toggle_event_interest RPC ONLY
+  // if a readable-event mark is rejected with Postgres 42501 — see design §2.2.)
+  const { error } = await supabase.from("event_interests").upsert(
+    { event_id: eventId, user_id: user.id },
+    { onConflict: "event_id,user_id", ignoreDuplicates: true }
+  );
+
+  if (error) {
+    console.error("[markInterested]", error.message);
+    if (error.code === "42501") {
+      return { ok: false, error: "Not found or not allowed." };
+    }
+    return { ok: false, error: "Could not update interest. Try again." };
+  }
+
+  revalidatePath("/events");
+  revalidatePath("/events/" + eventId);
+  return { ok: true, interested: true };
+}
+
+export async function unmarkInterested({
+  eventId,
+}: {
+  eventId: string;
+}): Promise<InterestResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(eventId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false, error: "Sign in to mark interest." };
+  }
+
+  const { error } = await supabase
+    .from("event_interests")
+    .delete()
+    .eq("event_id", eventId)
+    .eq("user_id", user.id);
+
+  if (error) {
+    console.error("[unmarkInterested]", error.message);
+    return { ok: false, error: "Could not update interest. Try again." };
+  }
+
+  // Zero rows diverges from withdrawVolunteer: unmarking when not interested
+  // is a no-op that returns success (the DELETE is self-scoped, so no rows
+  // means "already not interested," not a permission failure).
+  revalidatePath("/events");
+  revalidatePath("/events/" + eventId);
+  return { ok: true, interested: false };
+}

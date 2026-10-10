@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import SupabaseNotConfigured from "@/components/SupabaseNotConfigured";
 import ScopeBadge from "@/components/ScopeBadge";
 import CreateEventForm from "@/components/CreateEventForm";
+import MyEventsPanel from "@/components/MyEventsPanel";
 import type { Event } from "@/types/db";
 
 export default async function EventsPage() {
@@ -89,6 +90,13 @@ export default async function EventsPage() {
         <CreateEventForm groups={viewerGroups} />
       </section>
 
+      <section className="mb-8">
+        <MyEventsPanel />
+      </section>
+
+      <h2 className="mb-3 text-lg font-semibold text-text-primary">
+        Available events
+      </h2>
       {events.length === 0 ? (
         <p className="text-text-secondary">No events yet.</p>
       ) : (

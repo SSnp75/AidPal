@@ -137,6 +137,16 @@ create table if not exists public.event_volunteers (
   primary key (event_id, user_id)
 );
 
+-- ── event_interests ──
+-- Per-user "Interested" flag on events, independent of volunteering.
+-- Structurally identical to event_volunteers minus the role column.
+create table if not exists public.event_interests (
+  event_id   uuid not null references public.events(id)   on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (event_id, user_id)
+);
+
 create index if not exists bookmarks_user_created_idx on public.bookmarks (user_id, created_at desc);
 create index if not exists activities_user_created_idx on public.activities (user_id, created_at desc);
 create index if not exists friendships_user_high_idx on public.friendships (user_high);
@@ -146,6 +156,7 @@ create index if not exists events_creator_id_idx     on public.events (creator_i
 create index if not exists events_starts_at_idx      on public.events (starts_at);
 create index if not exists event_tasks_event_id_idx  on public.event_tasks (event_id);
 create index if not exists event_volunteers_user_idx on public.event_volunteers (user_id);
+create index if not exists event_interests_user_idx  on public.event_interests (user_id);
 
 -- ═══════════════════════════════════════════════
 -- RLS: Enable on all tables
@@ -164,6 +175,7 @@ alter table public.friendships   enable row level security;
 alter table public.events           enable row level security;
 alter table public.event_tasks      enable row level security;
 alter table public.event_volunteers enable row level security;
+alter table public.event_interests  enable row level security;
 
 -- ═══════════════════════════════════════════════
 -- Helper functions (SECURITY DEFINER)
@@ -626,6 +638,25 @@ create policy event_volunteers_insert on public.event_volunteers
 create policy event_volunteers_delete on public.event_volunteers
   for delete to authenticated using (user_id = auth.uid());
 
+-- ── event_interests ──
+-- Routed solely through can_read_event (no direct events/groups subselect).
+-- Insert is self-only + can_read_event (gate the interest to a readable
+-- event); delete is self-only (a user may always withdraw their own row).
+-- No UPDATE policy; no anon grant — insert-or-delete only (like event_volunteers).
+drop policy if exists event_interests_select on public.event_interests;
+drop policy if exists event_interests_insert on public.event_interests;
+drop policy if exists event_interests_delete on public.event_interests;
+
+create policy event_interests_select on public.event_interests
+  for select to authenticated using (public.can_read_event(event_id));
+
+create policy event_interests_insert on public.event_interests
+  for insert to authenticated
+  with check (user_id = auth.uid() and public.can_read_event(event_id));
+
+create policy event_interests_delete on public.event_interests
+  for delete to authenticated using (user_id = auth.uid());
+
 -- ═══════════════════════════════════════════════
 -- Storage: media bucket + policies
 -- ═══════════════════════════════════════════════
@@ -1076,3 +1107,36 @@ alter table public.activities add constraint activities_verb_check
     'created_post','commented','reacted','joined_group','created_group','bookmarked',
     'sent_friend_request','accepted_friend','created_event','volunteered_for_event'
   ));
+
+-- ============================================================
+-- INCREMENTAL MIGRATION: add event_interests
+-- Run ONCE in the Supabase SQL editor. Touches no existing data;
+-- safe to re-run. References only pre-existing objects
+-- (events, profiles, can_read_event) plus the table it creates.
+-- No activities.verb change — interest is intentionally NOT logged.
+-- Write path is a DIRECT self-scoped insert/delete (no RPC); the
+-- self-scoped insert policy below is satisfiable by the caller's JWT.
+-- ============================================================
+
+create table if not exists public.event_interests (
+  event_id   uuid not null references public.events(id)   on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (event_id, user_id)
+);
+
+create index if not exists event_interests_user_idx on public.event_interests (user_id);
+
+alter table public.event_interests enable row level security;
+
+drop policy if exists event_interests_select on public.event_interests;
+drop policy if exists event_interests_insert on public.event_interests;
+drop policy if exists event_interests_delete on public.event_interests;
+
+create policy event_interests_select on public.event_interests
+  for select to authenticated using (public.can_read_event(event_id));
+create policy event_interests_insert on public.event_interests
+  for insert to authenticated
+  with check (user_id = auth.uid() and public.can_read_event(event_id));
+create policy event_interests_delete on public.event_interests
+  for delete to authenticated using (user_id = auth.uid());
