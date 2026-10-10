@@ -121,6 +121,20 @@ export function validateCommentBody(raw: unknown): ValidationResult {
   return { ok: true };
 }
 
+export const MAX_MESSAGE_LEN = 2000;
+
+export function validateMessageBody(raw: unknown): ValidationResult {
+  if (typeof raw !== "string" || raw.trim().length === 0) {
+    return { ok: false, error: "Message can't be empty." };
+  }
+  // Count Unicode code points, not UTF-16 code units, so the bound matches
+  // the table CHECK's char_length() for astral-plane input (emoji, CJK ext).
+  if ([...raw.trim()].length > MAX_MESSAGE_LEN) {
+    return { ok: false, error: "Message is too long (max 2000 characters)." };
+  }
+  return { ok: true };
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function isUUID(raw: unknown): boolean {

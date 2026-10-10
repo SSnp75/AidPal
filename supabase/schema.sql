@@ -147,6 +147,36 @@ create table if not exists public.event_interests (
   primary key (event_id, user_id)
 );
 
+-- ── messaging: conversations / conversation_members / messages ──
+-- Two conversation kinds: 'dm' (two accepted friends, membership materialized
+-- in conversation_members) and 'group' (one implicit thread per group, access
+-- derived from is_group_member — no member rows materialized).
+create table if not exists public.conversations (
+  id         uuid primary key default gen_random_uuid(),
+  kind       text not null check (kind in ('dm','group')),
+  group_id   uuid references public.groups(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint conversations_kind_group_chk check (
+    (kind = 'group' and group_id is not null) or
+    (kind = 'dm'    and group_id is null)
+  )
+);
+
+create table if not exists public.conversation_members (
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  user_id         uuid not null references public.profiles(id)      on delete cascade,
+  created_at      timestamptz not null default now(),
+  primary key (conversation_id, user_id)
+);
+
+create table if not exists public.messages (
+  id              uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  sender_id       uuid not null references public.profiles(id)      on delete cascade,
+  body            text not null check (char_length(btrim(body)) between 1 and 2000),
+  created_at      timestamptz not null default now()
+);
+
 create index if not exists bookmarks_user_created_idx on public.bookmarks (user_id, created_at desc);
 create index if not exists activities_user_created_idx on public.activities (user_id, created_at desc);
 create index if not exists friendships_user_high_idx on public.friendships (user_high);
@@ -157,6 +187,11 @@ create index if not exists events_starts_at_idx      on public.events (starts_at
 create index if not exists event_tasks_event_id_idx  on public.event_tasks (event_id);
 create index if not exists event_volunteers_user_idx on public.event_volunteers (user_id);
 create index if not exists event_interests_user_idx  on public.event_interests (user_id);
+-- messaging: one group conversation per group; thread read by (conversation, time).
+create unique index if not exists conversations_group_uq
+  on public.conversations (group_id) where kind = 'group';
+create index if not exists messages_conversation_created_idx
+  on public.messages (conversation_id, created_at);
 
 -- ═══════════════════════════════════════════════
 -- RLS: Enable on all tables
@@ -176,6 +211,9 @@ alter table public.events           enable row level security;
 alter table public.event_tasks      enable row level security;
 alter table public.event_volunteers enable row level security;
 alter table public.event_interests  enable row level security;
+alter table public.conversations        enable row level security;
+alter table public.conversation_members enable row level security;
+alter table public.messages             enable row level security;
 
 -- ═══════════════════════════════════════════════
 -- Helper functions (SECURITY DEFINER)
@@ -341,6 +379,66 @@ as $$
   );
 $$;
 
+-- RLS RECURSION / ACYCLIC POLICY GRAPH (messaging; NFR-2, AC-7):
+--   conversations SELECT policy         → can_access_conversation(id)
+--   conversation_members SELECT policy  → can_access_conversation(conversation_id)
+--   messages SELECT policy              → can_access_conversation(conversation_id)
+--   messages INSERT policy              → can_access_conversation(conversation_id)
+--   can_access_conversation body        → reads base conversations /
+--                                          conversation_members, then calls
+--                                          is_group_member / are_friends
+-- Because can_access_conversation (and the nested is_group_member / are_friends)
+-- are SECURITY DEFINER, their bodies run as the function owner with RLS BYPASSED,
+-- so the subselects on conversations / conversation_members do NOT re-enter those
+-- tables' SELECT policies. No policy therefore transitively invokes itself → the
+-- graph is acyclic and Postgres never raises "infinite recursion detected in
+-- policy". is_group_member reads group_members and are_friends reads friendships —
+-- neither touches a messaging table, so they add no new edge back into messaging
+-- policies. This mirrors how can_read_event reads events/event_tasks despite those
+-- tables having their own SELECT policies.
+--
+-- DM "exactly two members" invariant (load-bearing): the DM self-join below is
+-- correct only because a DM conversation_members set always holds exactly two
+-- rows. start_or_get_dm is the sole writer (inserts both rows in one statement)
+-- and no RLS policy permits a client insert/update/delete on conversation_members,
+-- so no client can add a third member or delete one. The `other` member is thus
+-- the unique user_id <> auth.uid() row.
+--
+-- Four-persona manual verification (run once in the Supabase SQL editor, NOT
+-- executed here) — for a DM and a group conversation, confirm each persona's
+-- expected boolean and that no call raises "infinite recursion detected in
+-- policy" (design.md §2.4):
+--   select can_access_conversation(:cid);  -- as each persona
+create or replace function public.can_access_conversation(cid uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from conversations c
+    where c.id = cid
+      and (
+        -- group chat: current user is a member of the group
+        (c.kind = 'group' and public.is_group_member(c.group_id))
+        -- DM: current user is one of the two members AND the pair is still
+        -- accepted-friends. are_friends() is the FR-9/FR-10 gate: unfriending
+        -- removes read access to the retained history (A-4 intended behavior).
+        or (c.kind = 'dm' and exists (
+              select 1
+              from conversation_members me
+              join conversation_members other
+                on other.conversation_id = me.conversation_id
+               and other.user_id <> me.user_id
+              where me.conversation_id = c.id
+                and me.user_id = auth.uid()
+                and public.are_friends(me.user_id, other.user_id)
+           ))
+      )
+  );
+$$;
+
 -- ═══════════════════════════════════════════════
 -- create_group RPC (atomic group + owner member)
 -- ═══════════════════════════════════════════════
@@ -417,6 +515,96 @@ begin
   returning id into new_id;
 
   return new_id;
+end;
+$$;
+
+-- ═══════════════════════════════════════════════
+-- messaging RPCs (SECURITY DEFINER; conversation creation)
+-- ═══════════════════════════════════════════════
+
+-- start_or_get_dm — create or return the DM conversation between the caller and
+-- _friend, only if they are accepted friends; materializes exactly two member
+-- rows on first creation (sole writer of conversation_members — see the DM
+-- invariant note on can_access_conversation).
+create or replace function public.start_or_get_dm(_friend uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  me  uuid := auth.uid();
+  cid uuid;
+begin
+  if me is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+  if _friend is null or _friend = me then
+    raise exception 'invalid friend' using errcode = '22023';
+  end if;
+  if not public.are_friends(me, _friend) then
+    raise exception 'not friends' using errcode = '42501';
+  end if;
+
+  select c.id into cid
+  from conversations c
+  where c.kind = 'dm'
+    and exists (select 1 from conversation_members m
+                 where m.conversation_id = c.id and m.user_id = me)
+    and exists (select 1 from conversation_members m
+                 where m.conversation_id = c.id and m.user_id = _friend)
+  limit 1;
+  if cid is not null then
+    return cid;
+  end if;
+
+  insert into conversations (kind, group_id) values ('dm', null)
+  returning id into cid;
+  insert into conversation_members (conversation_id, user_id)
+  values (cid, me), (cid, _friend);
+  return cid;
+end;
+$$;
+
+-- get_or_create_group_conversation — return the group's single chat conversation,
+-- creating it on first use, only if the caller is a member. Race-safe via the
+-- conversations_group_uq partial unique index.
+-- INVARIANT: keep this block TEXTUALLY IDENTICAL to the §10.2 migration copy —
+-- the literal kind='group' insert and `on conflict (group_id) where kind = 'group'`
+-- must match the partial-index predicate, else inference raises 42P10 at runtime.
+create or replace function public.get_or_create_group_conversation(_group uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  me  uuid := auth.uid();
+  cid uuid;
+begin
+  if me is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+  if _group is null or not public.is_group_member(_group) then
+    raise exception 'not a group member' using errcode = '42501';
+  end if;
+
+  select id into cid from conversations
+  where kind = 'group' and group_id = _group
+  limit 1;
+  if cid is not null then
+    return cid;
+  end if;
+
+  insert into conversations (kind, group_id) values ('group', _group)
+  on conflict (group_id) where kind = 'group' do nothing
+  returning id into cid;
+  if cid is null then
+    select id into cid from conversations
+    where kind = 'group' and group_id = _group
+    limit 1;
+  end if;
+  return cid;
 end;
 $$;
 
@@ -707,6 +895,32 @@ create policy event_interests_insert on public.event_interests
 
 create policy event_interests_delete on public.event_interests
   for delete to authenticated using (user_id = auth.uid());
+
+-- ── messaging ──
+-- All SELECTs (and the message INSERT) route through can_access_conversation —
+-- no direct subselect against profiles/groups/friendships/group_members here
+-- (FR-12, AC-7). No INSERT/UPDATE/DELETE policies on conversations or
+-- conversation_members: those rows are created only by the SECURITY DEFINER
+-- RPCs above. messages are immutable (no update/delete policy). No anon grants.
+drop policy if exists conversations_select on public.conversations;
+create policy conversations_select on public.conversations
+  for select to authenticated using (public.can_access_conversation(id));
+
+drop policy if exists conversation_members_select on public.conversation_members;
+create policy conversation_members_select on public.conversation_members
+  for select to authenticated using (public.can_access_conversation(conversation_id));
+
+drop policy if exists messages_select on public.messages;
+create policy messages_select on public.messages
+  for select to authenticated using (public.can_access_conversation(conversation_id));
+
+drop policy if exists messages_insert on public.messages;
+create policy messages_insert on public.messages
+  for insert to authenticated
+  with check (
+    sender_id = auth.uid()
+    and public.can_access_conversation(conversation_id)
+  );
 
 -- ═══════════════════════════════════════════════
 -- Storage: media bucket + policies
@@ -1243,3 +1457,182 @@ create policy event_interests_insert on public.event_interests
   with check (user_id = auth.uid() and public.can_read_event(event_id));
 create policy event_interests_delete on public.event_interests
   for delete to authenticated using (user_id = auth.uid());
+
+-- ============================================================
+-- INCREMENTAL MIGRATION: messaging (DM + group chat)
+-- Paste VERBATIM into the Supabase SQL editor (role postgres)
+-- against an existing live DB. Idempotent: safe to re-run.
+-- Mirrors the objects added to the canonical schema above.
+-- Re-run no-op basis: tables/indexes use `if not exists`;
+-- `alter table ... enable row level security` is a no-op when RLS
+-- is already enabled; the helper and both RPCs are `create or
+-- replace`; and each of the four policies is `drop policy if
+-- exists ... ; create policy ...` with an IDENTICAL definition,
+-- so re-running the whole block changes nothing — a true no-op.
+-- ============================================================
+
+-- 1. Tables
+create table if not exists public.conversations (
+  id         uuid primary key default gen_random_uuid(),
+  kind       text not null check (kind in ('dm','group')),
+  group_id   uuid references public.groups(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  constraint conversations_kind_group_chk check (
+    (kind = 'group' and group_id is not null) or
+    (kind = 'dm'    and group_id is null)
+  )
+);
+
+create table if not exists public.conversation_members (
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  user_id         uuid not null references public.profiles(id)      on delete cascade,
+  created_at      timestamptz not null default now(),
+  primary key (conversation_id, user_id)
+);
+
+create table if not exists public.messages (
+  id              uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  sender_id       uuid not null references public.profiles(id)      on delete cascade,
+  body            text not null check (char_length(btrim(body)) between 1 and 2000),
+  created_at      timestamptz not null default now()
+);
+
+-- 2. Indexes
+create unique index if not exists conversations_group_uq
+  on public.conversations (group_id) where kind = 'group';
+create index if not exists messages_conversation_created_idx
+  on public.messages (conversation_id, created_at);
+
+-- 3. RLS enable
+alter table public.conversations        enable row level security;
+alter table public.conversation_members enable row level security;
+alter table public.messages             enable row level security;
+
+-- 4. Authorization helper (SECURITY DEFINER; RLS-bypassed body → acyclic, see schema comment)
+create or replace function public.can_access_conversation(cid uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from conversations c
+    where c.id = cid
+      and (
+        (c.kind = 'group' and public.is_group_member(c.group_id))
+        or (c.kind = 'dm' and exists (
+              select 1
+              from conversation_members me
+              join conversation_members other
+                on other.conversation_id = me.conversation_id
+               and other.user_id <> me.user_id
+              where me.conversation_id = c.id
+                and me.user_id = auth.uid()
+                and public.are_friends(me.user_id, other.user_id)
+           ))
+      )
+  );
+$$;
+
+-- 5. RPCs
+create or replace function public.start_or_get_dm(_friend uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  me  uuid := auth.uid();
+  cid uuid;
+begin
+  if me is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+  if _friend is null or _friend = me then
+    raise exception 'invalid friend' using errcode = '22023';
+  end if;
+  if not public.are_friends(me, _friend) then
+    raise exception 'not friends' using errcode = '42501';
+  end if;
+
+  select c.id into cid
+  from conversations c
+  where c.kind = 'dm'
+    and exists (select 1 from conversation_members m
+                 where m.conversation_id = c.id and m.user_id = me)
+    and exists (select 1 from conversation_members m
+                 where m.conversation_id = c.id and m.user_id = _friend)
+  limit 1;
+  if cid is not null then
+    return cid;
+  end if;
+
+  insert into conversations (kind, group_id) values ('dm', null)
+  returning id into cid;
+  insert into conversation_members (conversation_id, user_id)
+  values (cid, me), (cid, _friend);
+  return cid;
+end;
+$$;
+
+create or replace function public.get_or_create_group_conversation(_group uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  me  uuid := auth.uid();
+  cid uuid;
+begin
+  if me is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+  if _group is null or not public.is_group_member(_group) then
+    raise exception 'not a group member' using errcode = '42501';
+  end if;
+
+  select id into cid from conversations
+  where kind = 'group' and group_id = _group
+  limit 1;
+  if cid is not null then
+    return cid;
+  end if;
+
+  insert into conversations (kind, group_id) values ('group', _group)
+  on conflict (group_id) where kind = 'group' do nothing
+  returning id into cid;
+  if cid is null then
+    select id into cid from conversations
+    where kind = 'group' and group_id = _group
+    limit 1;
+  end if;
+  return cid;
+end;
+$$;
+
+-- 6. Policies (drop-then-create; SELECT/INSERT routed through can_access_conversation)
+drop policy if exists conversations_select on public.conversations;
+create policy conversations_select on public.conversations
+  for select to authenticated using (public.can_access_conversation(id));
+
+drop policy if exists conversation_members_select on public.conversation_members;
+create policy conversation_members_select on public.conversation_members
+  for select to authenticated using (public.can_access_conversation(conversation_id));
+
+drop policy if exists messages_select on public.messages;
+create policy messages_select on public.messages
+  for select to authenticated using (public.can_access_conversation(conversation_id));
+
+drop policy if exists messages_insert on public.messages;
+create policy messages_insert on public.messages
+  for insert to authenticated
+  with check (
+    sender_id = auth.uid()
+    and public.can_access_conversation(conversation_id)
+  );
+-- No UPDATE/DELETE policies on any messaging table (messages immutable;
+-- conversations/members written only by the SECURITY DEFINER RPCs above).
+-- No anon grants.
