@@ -46,6 +46,16 @@ function GroupsIcon() {
     </svg>
   );
 }
+function EventsIcon() {
+  return (
+    <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4.5" width="18" height="16" rx="2" />
+      <path d="M3 9h18" />
+      <path d="M8 3v3" />
+      <path d="M16 3v3" />
+    </svg>
+  );
+}
 function PhotosIcon() {
   return (
     <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -152,6 +162,9 @@ export default function LeftSidebar({
               <GroupsIcon />
               <span>Groups</span>
             </Link>
+          </li>
+          <li>
+            <NavLink href="/events" icon={<EventsIcon />} label="Events" />
           </li>
           <li>
             <Link href="/photos" className={linkNavClass}>

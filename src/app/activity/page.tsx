@@ -88,6 +88,10 @@ export default async function ActivityPage() {
         return <>You sent a friend request</>;
       case "accepted_friend":
         return <>You accepted a friend request</>;
+      case "created_event":
+        return <>You created an event</>;
+      case "volunteered_for_event":
+        return <>You volunteered for an event</>;
       default:
         return <>You did something</>;
     }

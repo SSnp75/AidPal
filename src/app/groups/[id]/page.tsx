@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
@@ -150,6 +151,16 @@ export default async function GroupDetailPage({
             <p className="mt-2 text-gray-300">{group.description}</p>
           )}
         </header>
+
+        {/* Member-only Create Event entry (additive — muted tokens). */}
+        {user && isMember && (
+          <Link
+            href={`/events/new?groupId=${group.id}`}
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-side-card px-3 py-2 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card"
+          >
+            Create Event
+          </Link>
+        )}
 
         {/* Join / Post controls */}
         {user ? (
