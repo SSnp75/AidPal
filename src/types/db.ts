@@ -9,7 +9,7 @@ export interface Profile {
   updated_at: string;
 }
 
-export type GroupScope = "local" | "national" | "global";
+export type GroupScope = "local" | "national" | "global" | "group";
 
 export interface Group {
   id: string;

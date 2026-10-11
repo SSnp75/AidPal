@@ -160,6 +160,7 @@ export default function NewGroupForm({
             <option value="local">Local</option>
             <option value="national">National</option>
             <option value="global">Global</option>
+            <option value="group">Group</option>
           </select>
         </div>
 

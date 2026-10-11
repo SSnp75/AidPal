@@ -1663,7 +1663,7 @@ alter table public.groups add column if not exists country_code  text references
 alter table public.groups add column if not exists city          text check (city is null or char_length(city) <= 100);
 alter table public.groups add column if not exists category_slug text references public.group_categories(slug);
 alter table public.groups add column if not exists scope         text not null default 'local'
-  check (scope in ('local','national','global'));
+  check (scope in ('local','national','global','group'));
 
 create index if not exists groups_country_code_idx on public.groups (country_code);
 create index if not exists groups_category_slug_idx on public.groups (category_slug);

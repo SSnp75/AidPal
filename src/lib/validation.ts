@@ -255,6 +255,7 @@ export const GROUP_SCOPES: readonly GroupScope[] = [
   "local",
   "national",
   "global",
+  "group",
 ] as const;
 
 export function isGroupScope(raw: unknown): raw is GroupScope {

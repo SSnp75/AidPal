@@ -20,6 +20,13 @@ interface GroupSummary {
   name: string;
 }
 
+interface NewGroupItem {
+  id: string;
+  name: string;
+  owner: string;
+  isSelf: boolean;
+}
+
 export default async function HomePage() {
   if (!isSupabaseConfigured()) {
     return (
@@ -43,6 +50,8 @@ export default async function HomePage() {
   let handle = "guest";
   let createdGroups: GroupSummary[] = [];
   let memberGroups: GroupSummary[] = [];
+  let newGroups: NewGroupItem[] = [];
+  let friendsGroups: NewGroupItem[] = [];
 
   try {
     const supabase = await createClient();
@@ -82,6 +91,61 @@ export default async function HomePage() {
       memberGroups = (memberships ?? [])
         .map((m) => m.groups)
         .filter((g): g is GroupSummary => g !== null);
+
+      // Recent public groups (visible to everyone) — "New Groups".
+      const { data: recent } = await supabase
+        .from("groups")
+        .select("id, name, owner_id, created_at")
+        .eq("is_private", false)
+        .order("created_at", { ascending: false })
+        .limit(20)
+        .returns<
+          { id: string; name: string; owner_id: string; created_at: string }[]
+        >();
+
+      // Owner display names for those groups.
+      const ownerIds = Array.from(
+        new Set((recent ?? []).map((g) => g.owner_id))
+      );
+      const { data: owners } = ownerIds.length
+        ? await supabase
+            .from("profiles")
+            .select("id, display_name")
+            .in("id", ownerIds)
+            .returns<{ id: string; display_name: string }[]>()
+        : { data: [] as { id: string; display_name: string }[] };
+      const ownerName = new Map(
+        (owners ?? []).map((o) => [o.id, o.display_name])
+      );
+
+      // Which of those owners are my accepted friends?
+      const { data: myFriendships } = await supabase
+        .from("friendships")
+        .select("user_low, user_high, status")
+        .eq("status", "accepted")
+        .returns<{ user_low: string; user_high: string; status: string }[]>();
+      const friendIds = new Set<string>();
+      for (const f of myFriendships ?? []) {
+        if (f.user_low === user.id) friendIds.add(f.user_high);
+        else if (f.user_high === user.id) friendIds.add(f.user_low);
+      }
+
+      const toItem = (g: {
+        id: string;
+        name: string;
+        owner_id: string;
+      }): NewGroupItem => ({
+        id: g.id,
+        name: g.name,
+        owner: ownerName.get(g.owner_id) ?? "Someone",
+        isSelf: g.owner_id === user.id,
+      });
+
+      newGroups = (recent ?? []).slice(0, 8).map(toItem);
+      friendsGroups = (recent ?? [])
+        .filter((g) => friendIds.has(g.owner_id))
+        .slice(0, 8)
+        .map(toItem);
     }
   } catch {
     // no session — keep placeholder guest identity
@@ -116,11 +180,61 @@ export default async function HomePage() {
           handle={handle}
           stats={stats}
         />
-        <CenterFeed
-          composerName={displayName}
-          latestPosts={useRealFeed ? latestPosts : samplePosts}
-          trendingPosts={useRealFeed ? trendingPosts : []}
-        />
+        <div className="min-w-0 flex flex-col gap-3">
+          {friendsGroups.length > 0 && (
+            <section className="rounded-xl border border-border bg-card p-3">
+              <h2 className="mb-2 text-sm font-semibold text-text-primary">
+                👥 Friends&apos; new groups
+              </h2>
+              <ul className="flex flex-col gap-1">
+                {friendsGroups.map((g) => (
+                  <li key={`fr-${g.id}`} className="text-sm text-text-secondary">
+                    <span className="font-medium text-text-primary">
+                      {g.owner}
+                    </span>{" "}
+                    created a new group:{" "}
+                    <Link
+                      href={`/groups/${g.id}`}
+                      className="text-accent underline underline-offset-2 hover:text-accent-light"
+                    >
+                      {g.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {newGroups.length > 0 && (
+            <section className="rounded-xl border border-border bg-card p-3">
+              <h2 className="mb-2 text-sm font-semibold text-text-primary">
+                ✨ New groups
+              </h2>
+              <ul className="flex flex-col gap-1">
+                {newGroups.map((g) => (
+                  <li key={`new-${g.id}`} className="text-sm text-text-secondary">
+                    <span className="font-medium text-text-primary">
+                      {g.isSelf ? "You" : g.owner}
+                    </span>{" "}
+                    created a new group:{" "}
+                    <Link
+                      href={`/groups/${g.id}`}
+                      className="text-accent underline underline-offset-2 hover:text-accent-light"
+                    >
+                      {g.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <CenterFeed
+            composerName={displayName}
+            latestPosts={useRealFeed ? latestPosts : samplePosts}
+            trendingPosts={useRealFeed ? trendingPosts : []}
+          />
+        </div>
         <div className="hidden flex-col gap-6 min-[992px]:flex">
           {/* Create Event button + the user's events (My / Interested / Volunteering) */}
           <Link
