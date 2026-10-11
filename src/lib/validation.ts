@@ -293,6 +293,29 @@ export function normalizeTags(raw: unknown): string[] {
   return out;
 }
 
+/**
+ * Extract auto-tags from a post body: the word following each `@ # $ % &`
+ * sigil becomes a tag. "First word after the sigil" means the run of
+ * letters/digits/_/- immediately after it (stops at whitespace or punctuation),
+ * so "#Nepal, flood" yields "nepal" (not "flood"). Each match is normalized
+ * (lowercased, trimmed) and the list is deduped with order preserved.
+ */
+export function extractTagsFromBody(body: string): string[] {
+  if (typeof body !== "string" || body.length === 0) return [];
+  // Sigil, then the first word: Unicode letters/digits plus _ and -.
+  const re = /[@#$%&]([\p{L}\p{N}_-]+)/gu;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const m of body.matchAll(re)) {
+    const t = normalizeTag(m[1]);
+    if (t && !seen.has(t)) {
+      seen.add(t);
+      out.push(t);
+    }
+  }
+  return out;
+}
+
 export function validateTags(
   raw: unknown
 ): { ok: true; value: string[] } | { ok: false; error: string } {

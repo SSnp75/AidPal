@@ -19,6 +19,7 @@ import {
   validateCountryCode,
   validateTags,
   normalizeTag,
+  extractTagsFromBody,
   MAX_TAGS,
 } from "@/lib/validation";
 import { isReactionType } from "@/lib/validation";
@@ -342,8 +343,54 @@ export async function createPost(
     });
   }
 
+  // Auto-tag the group from sigil-prefixed words in the body (#x @x $x %x &x).
+  // Each becomes a group tag, respecting the per-group cap. Best-effort:
+  // failures here never fail the post (it's already created).
+  if (body) {
+    await applyAutoTags(supabase, groupId, body);
+  }
+
   revalidatePath(`/groups/${groupId}`);
   return { ok: true };
+}
+
+/**
+ * Extract #/@/$/%/& tags from a post body and add any new ones to the group,
+ * up to MAX_TAGS. Uses the add_group_tag RPC so membership/RLS is enforced
+ * identically to manual tag editing. Never throws — tagging is best-effort.
+ */
+async function applyAutoTags(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  groupId: string,
+  body: string
+): Promise<void> {
+  const extracted = extractTagsFromBody(body);
+  if (extracted.length === 0) return;
+
+  const { data: existing } = await supabase
+    .from("group_tags")
+    .select("tag")
+    .eq("group_id", groupId)
+    .returns<{ tag: string }[]>();
+
+  const current = new Set((existing ?? []).map((t) => t.tag));
+  let slots = MAX_TAGS - current.size;
+  if (slots <= 0) return;
+
+  for (const tag of extracted) {
+    if (slots <= 0) break;
+    if (current.has(tag)) continue;
+    const { error } = await supabase.rpc("add_group_tag", {
+      _group: groupId,
+      _tag: tag,
+    });
+    if (error) {
+      console.error("[applyAutoTags]", error.message);
+      continue;
+    }
+    current.add(tag);
+    slots -= 1;
+  }
 }
 
 /* ── addComment ── */

@@ -13,6 +13,7 @@ import {
   safeNextPath,
   coerceIsPrivate,
   isReactionType,
+  extractTagsFromBody,
 } from "@/lib/validation";
 import { buildMediaKey } from "@/lib/storage-path";
 
@@ -212,5 +213,48 @@ describe("buildMediaKey", () => {
     expect(
       buildMediaKey("g1", "p1", "f1", "image/gif")
     ).toBe("group/g1/p1/f1.gif");
+  });
+});
+
+/* ── extractTagsFromBody ── */
+describe("extractTagsFromBody", () => {
+  it("extracts the word after each sigil", () => {
+    expect(extractTagsFromBody("#Nepal @resettlement $flood %rate &aid")).toEqual([
+      "nepal",
+      "resettlement",
+      "flood",
+      "rate",
+      "aid",
+    ]);
+  });
+
+  it("takes only the first word after a sigil, not following words", () => {
+    expect(extractTagsFromBody("#Nepal, flood")).toEqual(["nepal"]);
+  });
+
+  it("normalizes to lowercase and dedupes", () => {
+    expect(extractTagsFromBody("#Nepal #nepal #NEPAL")).toEqual(["nepal"]);
+  });
+
+  it("handles sigils mid-sentence", () => {
+    expect(extractTagsFromBody("Is it time to think about #resettlement policy?")).toEqual([
+      "resettlement",
+    ]);
+  });
+
+  it("ignores a bare sigil with no word", () => {
+    expect(extractTagsFromBody("price is $ and 50% off & more")).toEqual([]);
+  });
+
+  it("returns empty for no sigils", () => {
+    expect(extractTagsFromBody("just a plain post")).toEqual([]);
+  });
+
+  it("returns empty for empty input", () => {
+    expect(extractTagsFromBody("")).toEqual([]);
+  });
+
+  it("preserves hyphens inside a tag word", () => {
+    expect(extractTagsFromBody("#flood-relief now")).toEqual(["flood-relief"]);
   });
 });
