@@ -130,7 +130,7 @@ export default function RelatedGroups({
             <li key={g.id} className="flex items-center justify-between gap-2">
               <Link
                 href={`/groups/${g.id}`}
-                className="truncate text-sm text-text-primary hover:text-accent"
+                className="truncate text-sm font-bold text-text-primary hover:text-accent"
                 title={g.name}
               >
                 {g.name}
