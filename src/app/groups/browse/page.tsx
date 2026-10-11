@@ -126,7 +126,6 @@ export default async function BrowseGroupsPage({
           </span>
           {c && (
             <span>
-              {c.flag ? `${c.flag} ` : ""}
               {c.name}
               {g.city ? ` · ${g.city}` : ""}
             </span>
@@ -183,7 +182,6 @@ export default async function BrowseGroupsPage({
               .sort((a, b) => a.name.localeCompare(b.name))
               .map((c) => (
                 <option key={c.code} value={c.code}>
-                  {c.flag ? `${c.flag} ` : ""}
                   {c.name} ({countryFacet.get(c.code)})
                 </option>
               ))}

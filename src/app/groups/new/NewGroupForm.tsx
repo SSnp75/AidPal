@@ -116,7 +116,6 @@ export default function NewGroupForm({
             <option value="">— No country (global / online) —</option>
             {countries.map((c) => (
               <option key={c.code} value={c.code}>
-                {c.flag ? `${c.flag} ` : ""}
                 {c.name}
               </option>
             ))}

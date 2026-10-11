@@ -191,7 +191,6 @@ export default async function GroupDetailPage({
             </span>
             {groupCountry ? (
               <span>
-                {groupCountry.flag ? `${groupCountry.flag} ` : ""}
                 {groupCountry.name}
                 {group.city ? ` · ${group.city}` : ""}
               </span>
