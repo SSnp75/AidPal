@@ -141,10 +141,10 @@ export default async function HomePage() {
         isSelf: g.owner_id === user.id,
       });
 
-      newGroups = (recent ?? []).slice(0, 8).map(toItem);
+      newGroups = (recent ?? []).slice(0, 30).map(toItem);
       friendsGroups = (recent ?? [])
         .filter((g) => friendIds.has(g.owner_id))
-        .slice(0, 8)
+        .slice(0, 30)
         .map(toItem);
     }
   } catch {
@@ -174,7 +174,7 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-full w-full">
-      <div className="mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-6 px-4 py-8 max-[767px]:px-2 min-[992px]:grid-cols-[15%_minmax(0,70%)_15%]">
+      <div className="grid w-full grid-cols-1 gap-6 py-8 min-[992px]:grid-cols-[15%_minmax(0,70%)_15%]">
         <LeftSidebar
           displayName={displayName}
           handle={handle}
@@ -186,7 +186,7 @@ export default async function HomePage() {
               <h2 className="mb-2 text-sm font-semibold text-text-primary">
                 👥 Friends&apos; new groups
               </h2>
-              <ul className="flex flex-col gap-1">
+              <ul className="flex max-h-36 flex-col gap-1 overflow-y-auto pr-1">
                 {friendsGroups.map((g) => (
                   <li key={`fr-${g.id}`} className="text-sm text-text-secondary">
                     <span className="font-medium text-text-primary">
@@ -210,7 +210,7 @@ export default async function HomePage() {
               <h2 className="mb-2 text-sm font-semibold text-text-primary">
                 ✨ New groups
               </h2>
-              <ul className="flex flex-col gap-1">
+              <ul className="flex max-h-36 flex-col gap-1 overflow-y-auto pr-1">
                 {newGroups.map((g) => (
                   <li key={`new-${g.id}`} className="text-sm text-text-secondary">
                     <span className="font-medium text-text-primary">

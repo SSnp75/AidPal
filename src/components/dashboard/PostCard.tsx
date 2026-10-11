@@ -11,7 +11,7 @@ const engagementBtn =
 
 export default function PostCard({ post }: { post: SamplePost }) {
   return (
-    <article className="overflow-hidden rounded-xl border border-border bg-card p-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+    <article className="overflow-hidden rounded-xl border border-border bg-card px-2 py-1 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
       {/* Author row */}
       <div className="flex items-start gap-2">
         <Avatar name={post.authorName} sizeClass="h-6 w-6 text-[10px]" />
@@ -39,7 +39,7 @@ export default function PostCard({ post }: { post: SamplePost }) {
       {post.body && (
         <PostBody
           text={post.body}
-          className="mt-1.5 whitespace-pre-wrap text-[15px] text-text-primary leading-snug"
+          className="mt-1 whitespace-pre-wrap text-[15px] text-text-primary leading-snug"
         />
       )}
 
@@ -48,7 +48,7 @@ export default function PostCard({ post }: { post: SamplePost }) {
         <img
           src={post.imageUrl}
           alt={`Image posted by ${post.authorName}`}
-          className="mt-1.5 -mx-3 w-[calc(100%+1.5rem)] max-w-none max-h-[42rem] object-cover"
+          className="mt-1.5 w-full max-h-[42rem] rounded-lg object-contain"
         />
       )}
 
@@ -67,7 +67,7 @@ export default function PostCard({ post }: { post: SamplePost }) {
       )}
 
       {/* Engagement row */}
-      <div className="mt-1.5 flex items-center gap-0.5 border-t border-border pt-1">
+      <div className="mt-1 flex items-center gap-0.5 border-t border-border pt-0.5">
         <ReactionBar
           postId={post.id}
           initialCounts={post.reactions}

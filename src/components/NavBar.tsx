@@ -19,7 +19,7 @@ export default async function NavBar() {
   return (
     <header className="border-b border-border bg-card shadow-sm">
       <nav
-        className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-3"
+        className="mx-auto flex max-w-[1400px] items-center justify-between px-4 py-1"
         aria-label="Main navigation"
       >
         <Link

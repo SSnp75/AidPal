@@ -331,7 +331,7 @@ export default async function GroupDetailPage({
                       <img
                         src={publicUrl(media.storage_path)}
                         alt={`Image posted by ${authorName} in ${group.name}`}
-                        className="mb-1.5 -mx-2 w-[calc(100%+1rem)] max-w-none max-h-[42rem] object-cover"
+                        className="mb-1.5 w-full max-h-[42rem] rounded-lg object-contain"
                       />
                     )}
 

@@ -74,9 +74,15 @@ export default function CenterFeed({
               Trending Posts
             </h2>
           </div>
-          {trendingPosts.map((post) => (
-            <PostCard key={`trending-${post.id}`} post={post} />
-          ))}
+          {/* One vertical scroll box for all trending content. Each card is
+              shrink-0 so it keeps full height; the box scrolls instead. */}
+          <div className="max-h-[80vh] space-y-3 overflow-y-auto rounded-xl border border-border p-2">
+            {trendingPosts.map((post) => (
+              <div key={`trending-${post.id}`} className="shrink-0">
+                <PostCard post={post} />
+              </div>
+            ))}
+          </div>
         </>
       )}
 
@@ -92,9 +98,14 @@ export default function CenterFeed({
           No posts yet. Join a group and start sharing.
         </p>
       ) : (
-        latestPosts.map((post) => (
-          <PostCard key={`latest-${post.id}`} post={post} />
-        ))
+        /* One vertical scroll box for all latest content. */
+        <div className="max-h-[600px] space-y-3 overflow-y-auto rounded-xl border border-border p-2">
+          {latestPosts.map((post) => (
+            <div key={`latest-${post.id}`} className="shrink-0">
+              <PostCard post={post} />
+            </div>
+          ))}
+        </div>
       )}
     </section>
   );
