@@ -104,7 +104,7 @@ export default function RelatedGroups({
   }
 
   return (
-    <section className="rounded-2xl border border-side-border bg-side-card p-4">
+    <section className="rounded-2xl border border-border bg-card p-4">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-text-secondary">
           Related groups
@@ -130,7 +130,7 @@ export default function RelatedGroups({
             <li key={g.id} className="flex items-center justify-between gap-2">
               <Link
                 href={`/groups/${g.id}`}
-                className="truncate text-sm font-semibold text-black hover:text-accent"
+                className="truncate text-sm font-medium text-text-primary hover:text-accent"
                 title={g.name}
               >
                 {g.name}
