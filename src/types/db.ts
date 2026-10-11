@@ -9,6 +9,8 @@ export interface Profile {
   updated_at: string;
 }
 
+export type GroupScope = "local" | "national" | "global";
+
 export interface Group {
   id: string;
   name: string;
@@ -16,6 +18,26 @@ export interface Group {
   is_private: boolean;
   owner_id: string;
   created_at: string;
+  country_code: string | null;
+  city: string | null;
+  category_slug: string | null;
+  scope: GroupScope;
+}
+
+export interface Country {
+  code: string;
+  name: string;
+  flag: string | null;
+}
+
+export interface GroupCategory {
+  slug: string;
+  label: string;
+}
+
+export interface GroupTag {
+  group_id: string;
+  tag: string;
 }
 
 export interface GroupMember {

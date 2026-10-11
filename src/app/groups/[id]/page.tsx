@@ -12,7 +12,7 @@ import JoinButton from "@/components/JoinButton";
 import PostBody from "@/components/PostBody";
 import MyEventsPanel from "@/components/MyEventsPanel";
 import OpenGroupChatButton from "./OpenGroupChatButton";
-import type { Group, Post, Media, Comment, Profile, ReactionType } from "@/types/db";
+import type { Group, Post, Media, Comment, Profile, ReactionType, Country, GroupCategory, GroupTag } from "@/types/db";
 
 export default async function GroupDetailPage({
   params,
@@ -51,6 +51,31 @@ export default async function GroupDetailPage({
     });
     isMember = Boolean(membership);
   }
+
+  // Organization metadata (category label, country, tags) — additive.
+  const [{ data: groupCategory }, { data: groupCountry }, { data: groupTags }] =
+    await Promise.all([
+      group.category_slug
+        ? supabase
+            .from("group_categories")
+            .select("slug,label")
+            .eq("slug", group.category_slug)
+            .maybeSingle<GroupCategory>()
+        : Promise.resolve({ data: null }),
+      group.country_code
+        ? supabase
+            .from("countries")
+            .select("code,name,flag")
+            .eq("code", group.country_code)
+            .maybeSingle<Country>()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from("group_tags")
+        .select("group_id,tag")
+        .eq("group_id", id)
+        .order("tag")
+        .returns<GroupTag[]>(),
+    ]);
 
   // Posts
   const { data: posts } = await supabase
@@ -152,6 +177,40 @@ export default async function GroupDetailPage({
           )}
           {group.description && (
             <p className="mt-2 text-gray-300">{group.description}</p>
+          )}
+
+          {/* Organization metadata */}
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+            {groupCategory && (
+              <span className="rounded-full bg-gray-800 px-2 py-0.5">
+                {groupCategory.label}
+              </span>
+            )}
+            <span className="rounded-full bg-gray-800 px-2 py-0.5 capitalize">
+              {group.scope}
+            </span>
+            {groupCountry ? (
+              <span>
+                {groupCountry.flag ? `${groupCountry.flag} ` : ""}
+                {groupCountry.name}
+                {group.city ? ` · ${group.city}` : ""}
+              </span>
+            ) : (
+              group.scope === "global" && <span>🌍 Global</span>
+            )}
+          </div>
+
+          {groupTags && groupTags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {groupTags.map((t) => (
+                <span
+                  key={t.tag}
+                  className="rounded-full bg-gray-800 px-2 py-0.5 text-xs text-teal-300"
+                >
+                  #{t.tag}
+                </span>
+              ))}
+            </div>
           )}
         </header>
 

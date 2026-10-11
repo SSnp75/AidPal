@@ -13,6 +13,11 @@ import {
   isUUID,
   ALLOWED_MIME_TYPES,
   MAX_FILE_SIZE,
+  isGroupCategorySlug,
+  isGroupScope,
+  validateCity,
+  validateCountryCode,
+  validateTags,
 } from "@/lib/validation";
 import { isReactionType } from "@/lib/validation";
 import { buildMediaKey } from "@/lib/storage-path";
@@ -68,12 +73,45 @@ export async function createGroup(
   const rawName = formData.get("name");
   const rawDesc = formData.get("description");
   const rawPrivate = formData.get("isPrivate");
+  const rawCountry = formData.get("country");
+  const rawCity = formData.get("city");
+  const rawCategory = formData.get("category");
+  const rawScope = formData.get("scope");
+  const rawTags = formData.get("tags");
 
   const fieldErrors: Record<string, string> = {};
   const nameRes = validateGroupName(rawName);
   if (!nameRes.ok) fieldErrors.name = nameRes.error;
   const descRes = validateGroupDescription(rawDesc);
   if (!descRes.ok) fieldErrors.description = descRes.error;
+
+  // Category is required for new groups.
+  if (!isGroupCategorySlug(rawCategory)) {
+    fieldErrors.category = "Choose a category.";
+  }
+
+  // Country is optional; validate shape, then verify it exists.
+  let countryCode: string | null = null;
+  const countryRes = validateCountryCode(rawCountry);
+  if (!countryRes.ok) {
+    fieldErrors.country = countryRes.error;
+  } else if (countryRes.value) {
+    const { data: hit } = await supabase
+      .from("countries")
+      .select("code")
+      .eq("code", countryRes.value)
+      .maybeSingle<{ code: string }>();
+    if (!hit) fieldErrors.country = "Pick a country from the list.";
+    else countryCode = hit.code;
+  }
+
+  const cityRes = validateCity(rawCity);
+  if (!cityRes.ok) fieldErrors.city = cityRes.error;
+
+  const tagsRes = validateTags(rawTags);
+  if (!tagsRes.ok) fieldErrors.tags = tagsRes.error;
+
+  const scope = isGroupScope(rawScope) ? rawScope : "local";
 
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: "Please fix the errors below.", fieldErrors };
@@ -83,6 +121,11 @@ export async function createGroup(
     _name: (rawName as string).trim(),
     _description: rawDesc ? (rawDesc as string).trim() || null : null,
     _is_private: coerceIsPrivate(rawPrivate),
+    _country_code: countryCode,
+    _city: cityRes.ok ? cityRes.value : null,
+    _category_slug: rawCategory as string,
+    _scope: scope,
+    _tags: tagsRes.ok ? tagsRes.value : [],
   });
 
   if (error) {

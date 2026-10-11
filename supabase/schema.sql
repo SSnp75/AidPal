@@ -1636,3 +1636,122 @@ create policy messages_insert on public.messages
 -- No UPDATE/DELETE policies on any messaging table (messages immutable;
 -- conversations/members written only by the SECURITY DEFINER RPCs above).
 -- No anon grants.
+
+-- ============================================================
+-- GROUP ORGANIZATION: countries, categories, tags, group columns
+-- Idempotent. Run after the country seed (supabase/seeds/countries.sql).
+-- ============================================================
+
+create table if not exists public.countries (
+  code text primary key check (char_length(code) = 2 and code = upper(code)),
+  name text not null,
+  flag text
+);
+
+create table if not exists public.group_categories (
+  slug  text primary key,
+  label text not null
+);
+
+create table if not exists public.group_tags (
+  group_id uuid not null references public.groups(id) on delete cascade,
+  tag      text not null check (char_length(tag) between 1 and 30),
+  primary key (group_id, tag)
+);
+
+alter table public.groups add column if not exists country_code  text references public.countries(code);
+alter table public.groups add column if not exists city          text check (city is null or char_length(city) <= 100);
+alter table public.groups add column if not exists category_slug text references public.group_categories(slug);
+alter table public.groups add column if not exists scope         text not null default 'local'
+  check (scope in ('local','national','global'));
+
+create index if not exists groups_country_code_idx on public.groups (country_code);
+create index if not exists groups_category_slug_idx on public.groups (category_slug);
+create index if not exists groups_scope_idx on public.groups (scope);
+create index if not exists group_tags_tag_idx on public.group_tags (tag);
+
+-- Category seed (fixed list; 'community' is the backfill default).
+insert into public.group_categories (slug, label) values
+  ('environment','Environment'),
+  ('education','Education'),
+  ('health','Health'),
+  ('animals','Animals'),
+  ('disaster-relief','Disaster Relief'),
+  ('food-hunger','Food & Hunger'),
+  ('homelessness','Homelessness'),
+  ('arts-culture','Arts & Culture'),
+  ('sports','Sports'),
+  ('community','Community')
+on conflict (slug) do nothing;
+
+-- Country seed: run supabase/seeds/countries.sql (249 ISO 3166-1 rows).
+
+-- Backfill existing groups (idempotent via the where-guard).
+update public.groups
+   set category_slug = coalesce(category_slug, 'community'),
+       scope         = coalesce(scope, 'local')
+ where category_slug is null;
+
+-- Extend create_group RPC: set the 4 new columns + insert normalized tags
+-- atomically, stamping owner_id = auth.uid(). Backward compatible (all new
+-- params defaulted). Mirrors create_event's defaulted-param evolution.
+create or replace function public.create_group(
+  _name text,
+  _description text default null,
+  _is_private boolean default false,
+  _country_code text default null,
+  _city text default null,
+  _category_slug text default null,
+  _scope text default 'local',
+  _tags text[] default '{}'
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_id uuid;
+  t text;
+begin
+  insert into groups (name, description, is_private, owner_id,
+                      country_code, city, category_slug, scope)
+  values (_name, _description, _is_private, auth.uid(),
+          _country_code, _city, _category_slug, coalesce(_scope, 'local'))
+  returning id into new_id;
+
+  insert into group_members (group_id, user_id, role)
+  values (new_id, auth.uid(), 'owner');
+
+  if _tags is not null then
+    foreach t in array _tags loop
+      if t is not null and char_length(t) between 1 and 30 then
+        insert into group_tags (group_id, tag) values (new_id, t)
+        on conflict (group_id, tag) do nothing;
+      end if;
+    end loop;
+  end if;
+
+  return new_id;
+end;
+$$;
+
+-- RLS: reference tables are public-read, SQL-seeded only (no client writes).
+alter table public.countries        enable row level security;
+alter table public.group_categories enable row level security;
+alter table public.group_tags       enable row level security;
+
+drop policy if exists countries_select on public.countries;
+create policy countries_select on public.countries
+  for select to anon, authenticated using (true);
+
+drop policy if exists group_categories_select on public.group_categories;
+create policy group_categories_select on public.group_categories
+  for select to anon, authenticated using (true);
+
+-- group_tags: SELECT routes through can_read_group (SECURITY DEFINER, bypasses
+-- RLS → never re-enters group_tags' own policy; acyclic). Tag writes happen
+-- only inside the create_group SECURITY DEFINER RPC — NO client write policy.
+drop policy if exists group_tags_select on public.group_tags;
+create policy group_tags_select on public.group_tags
+  for select to anon, authenticated using (public.can_read_group(group_id));

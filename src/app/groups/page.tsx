@@ -30,14 +30,22 @@ export default async function GroupsPage() {
     <div className="mx-auto w-full max-w-5xl px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-teal-400">Public Groups</h1>
-        {user && (
+        <div className="flex items-center gap-3">
           <Link
-            href="/groups/new"
-            className="rounded bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-500 transition-colors"
+            href="/groups/browse"
+            className="rounded border border-gray-700 px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
           >
-            New Group
+            Browse
           </Link>
-        )}
+          {user && (
+            <Link
+              href="/groups/new"
+              className="rounded bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-500 transition-colors"
+            >
+              New Group
+            </Link>
+          )}
+        </div>
       </div>
 
       {!groups || groups.length === 0 ? (

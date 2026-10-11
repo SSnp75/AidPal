@@ -225,3 +225,115 @@ export const ALLOWED_MIME_TYPES = [
 ] as const;
 
 export const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+// ── Group organization ──
+
+import type { GroupScope } from "@/types/db";
+
+export const GROUP_CATEGORY_SLUGS = [
+  "environment",
+  "education",
+  "health",
+  "animals",
+  "disaster-relief",
+  "food-hunger",
+  "homelessness",
+  "arts-culture",
+  "sports",
+  "community",
+] as const;
+export type GroupCategorySlug = (typeof GROUP_CATEGORY_SLUGS)[number];
+
+export function isGroupCategorySlug(raw: unknown): raw is GroupCategorySlug {
+  return (
+    typeof raw === "string" &&
+    (GROUP_CATEGORY_SLUGS as readonly string[]).includes(raw)
+  );
+}
+
+export const GROUP_SCOPES: readonly GroupScope[] = [
+  "local",
+  "national",
+  "global",
+] as const;
+
+export function isGroupScope(raw: unknown): raw is GroupScope {
+  return typeof raw === "string" && (GROUP_SCOPES as string[]).includes(raw);
+}
+
+export const MAX_TAGS = 10;
+export const MAX_TAG_LEN = 30;
+export const MAX_CITY_LEN = 100;
+
+/** Normalize one tag: trim, lowercase, spaces→hyphens, collapse/strip hyphens, cap length. */
+export function normalizeTag(raw: string): string {
+  let t = raw.trim().toLocaleLowerCase("en");
+  t = t.replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return [...t].slice(0, MAX_TAG_LEN).join("");
+}
+
+/** Normalize a CSV string or array into a deduped, non-empty tag list (order preserved). */
+export function normalizeTags(raw: unknown): string[] {
+  let tokens: string[] = [];
+  if (Array.isArray(raw)) {
+    tokens = raw.filter((x): x is string => typeof x === "string");
+  } else if (typeof raw === "string") {
+    tokens = raw.split(",");
+  }
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const token of tokens) {
+    const t = normalizeTag(token);
+    if (t && !seen.has(t)) {
+      seen.add(t);
+      out.push(t);
+    }
+  }
+  return out;
+}
+
+export function validateTags(
+  raw: unknown
+): { ok: true; value: string[] } | { ok: false; error: string } {
+  const tags = normalizeTags(raw);
+  if (tags.length > MAX_TAGS) {
+    return { ok: false, error: `Use at most ${MAX_TAGS} tags.` };
+  }
+  return { ok: true, value: tags };
+}
+
+export function validateCity(
+  raw: unknown
+): { ok: true; value: string | null } | { ok: false; error: string } {
+  if (raw == null || raw === "") return { ok: true, value: null };
+  if (typeof raw !== "string") return { ok: false, error: "Invalid city." };
+  const city = raw.trim();
+  if (city === "") return { ok: true, value: null };
+  if (city.length > MAX_CITY_LEN) {
+    return { ok: false, error: `City must be ${MAX_CITY_LEN} characters or fewer.` };
+  }
+  return { ok: true, value: city };
+}
+
+/** Shape check only (2-char uppercase). Existence is verified against the DB. */
+export function validateCountryCode(
+  raw: unknown
+): { ok: true; value: string | null } | { ok: false; error: string } {
+  if (raw == null || raw === "") return { ok: true, value: null };
+  if (typeof raw !== "string") return { ok: false, error: "Invalid country." };
+  const code = raw.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) {
+    return { ok: false, error: "Pick a country from the list." };
+  }
+  return { ok: true, value: code };
+}
+
+/** Strip PostgREST filter meta-characters so a keyword is safe in .ilike()/.or(). */
+export function escapePostgrestLike(raw: string): string {
+  return raw
+    .trim()
+    .toLocaleLowerCase("en")
+    .replace(/[,().*:"\\]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
