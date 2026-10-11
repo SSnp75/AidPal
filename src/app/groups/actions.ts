@@ -522,21 +522,23 @@ export async function setReaction({
     if (row.user_id === user.id) mine = row.type;
   }
 
-  // Refresh server-rendered surfaces (same pattern as addComment).
-  revalidatePath("/");
-  const { data: post } = await supabase
-    .from("posts")
-    .select("group_id")
-    .eq("id", postId)
-    .maybeSingle();
-  if (post) revalidatePath(`/groups/${(post as { group_id: string }).group_id}`);
-
-  if (didReact && post)
-    await logActivity(supabase, user.id, "reacted", {
-      targetType: "post",
-      targetId: postId,
-      groupId: (post as { group_id: string }).group_id,
-    });
+  // No revalidatePath here: the ReactionBar updates optimistically and
+  // reconciles against the returned counts/mine, so a full server re-render
+  // on every click is unnecessary and makes the button feel slow. We still
+  // log activity best-effort (needs the post's group_id).
+  if (didReact) {
+    const { data: post } = await supabase
+      .from("posts")
+      .select("group_id")
+      .eq("id", postId)
+      .maybeSingle();
+    if (post)
+      await logActivity(supabase, user.id, "reacted", {
+        targetType: "post",
+        targetId: postId,
+        groupId: (post as { group_id: string }).group_id,
+      });
+  }
 
   return { ok: true, counts, mine };
 }
