@@ -12,6 +12,7 @@ import JoinButton from "@/components/JoinButton";
 import PostBody from "@/components/PostBody";
 import MyEventsPanel from "@/components/MyEventsPanel";
 import OpenGroupChatButton from "./OpenGroupChatButton";
+import RelatedGroups from "./RelatedGroups";
 import type { Group, Post, Media, Comment, Profile, ReactionType, Country, GroupCategory, GroupTag } from "@/types/db";
 
 export default async function GroupDetailPage({
@@ -76,6 +77,73 @@ export default async function GroupDetailPage({
         .order("tag")
         .returns<GroupTag[]>(),
     ]);
+
+  // Related groups (either side of the pair), with the other group's name.
+  const { data: relationRows } = await supabase
+    .from("group_relations")
+    .select("group_low, group_high")
+    .or(`group_low.eq.${id},group_high.eq.${id}`)
+    .returns<{ group_low: string; group_high: string }[]>();
+  const relatedIds = (relationRows ?? []).map((r) =>
+    r.group_low === id ? r.group_high : r.group_low
+  );
+  const { data: relatedRows } = relatedIds.length
+    ? await supabase
+        .from("groups")
+        .select("id, name")
+        .in("id", relatedIds)
+        .returns<{ id: string; name: string }[]>()
+    : { data: [] as { id: string; name: string }[] };
+  const relatedGroups = relatedRows ?? [];
+
+  // Can the viewer add/remove relations? Owner always; members when open.
+  const isOwner = Boolean(user) && group.owner_id === user!.id;
+  const canRelate = isOwner || (group.relations_open && isMember);
+
+  // Suggested groups to relate: groups the viewer created or belongs to,
+  // plus recent public groups — excluding this group and already-related ones.
+  let relationSuggestions: { id: string; name: string }[] = [];
+  if (canRelate && user) {
+    const [{ data: ownedSug }, { data: memberSug }, { data: recentSug }] =
+      await Promise.all([
+        supabase
+          .from("groups")
+          .select("id, name")
+          .eq("owner_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(10)
+          .returns<{ id: string; name: string }[]>(),
+        supabase
+          .from("group_members")
+          .select("groups ( id, name )")
+          .eq("user_id", user.id)
+          .limit(10)
+          .returns<{ groups: { id: string; name: string } | null }[]>(),
+        supabase
+          .from("groups")
+          .select("id, name")
+          .eq("is_private", false)
+          .order("created_at", { ascending: false })
+          .limit(10)
+          .returns<{ id: string; name: string }[]>(),
+      ]);
+
+    const exclude = new Set<string>([id, ...relatedIds]);
+    const seen = new Set<string>();
+    const pool: { id: string; name: string }[] = [
+      ...(ownedSug ?? []),
+      ...((memberSug ?? [])
+        .map((m) => m.groups)
+        .filter((g): g is { id: string; name: string } => g !== null)),
+      ...(recentSug ?? []),
+    ];
+    for (const g of pool) {
+      if (exclude.has(g.id) || seen.has(g.id)) continue;
+      seen.add(g.id);
+      relationSuggestions.push(g);
+    }
+    relationSuggestions = relationSuggestions.slice(0, 8);
+  }
 
   // Posts
   const { data: posts } = await supabase
@@ -306,6 +374,14 @@ export default async function GroupDetailPage({
         </main>
 
         <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
+          {/* Create a new group — quick access from within a group. */}
+          <Link
+            href="/groups/new"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-side-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
+            + Create a Group
+          </Link>
+
           {/* Member-only Create Event entry — relocated to the right sidebar
               (additive — muted tokens). */}
           {user && isMember && (
@@ -316,6 +392,16 @@ export default async function GroupDetailPage({
               Create Event
             </Link>
           )}
+
+          {/* Related groups — link this group to other existing groups. */}
+          <RelatedGroups
+            groupId={group.id}
+            related={relatedGroups}
+            suggestions={relationSuggestions}
+            canRelate={canRelate}
+            isOwner={isOwner}
+            relationsOpen={group.relations_open}
+          />
 
           {user && isMember && <OpenGroupChatButton groupId={group.id} />}
 

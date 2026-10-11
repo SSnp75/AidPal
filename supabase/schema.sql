@@ -1755,3 +1755,72 @@ create policy group_categories_select on public.group_categories
 drop policy if exists group_tags_select on public.group_tags;
 create policy group_tags_select on public.group_tags
   for select to anon, authenticated using (public.can_read_group(group_id));
+
+-- ============================================================
+-- GROUP RELATIONS: link a group to other existing groups (mutual)
+-- Idempotent. relations_open controls who may add relations:
+--   true  = any member of the group may add (default)
+--   false = only the group owner may add
+-- ============================================================
+
+alter table public.groups add column if not exists relations_open boolean not null default true;
+
+-- Canonical unordered pair (group_low < group_high) → one row per pair,
+-- so a relation is inherently mutual and can't be duplicated/reciprocated.
+create table if not exists public.group_relations (
+  group_low  uuid not null references public.groups(id) on delete cascade,
+  group_high uuid not null references public.groups(id) on delete cascade,
+  created_by uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (group_low, group_high),
+  constraint group_relations_order check (group_low < group_high)
+);
+
+create index if not exists group_relations_high_idx on public.group_relations (group_high);
+
+alter table public.group_relations enable row level security;
+
+-- SECURITY DEFINER helper: may the current user add a relation involving gid?
+-- Owner always; members only when the group's relations_open is true.
+create or replace function public.can_relate_group(gid uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from groups g
+    where g.id = gid
+      and (
+        g.owner_id = auth.uid()
+        or (g.relations_open and public.is_group_member(g.id))
+      )
+  );
+$$;
+
+-- RLS: a relation is readable if BOTH groups are readable to the viewer.
+-- Writing requires the user can read both groups AND can_relate at least one
+-- of them (the group they are relating from). created_by must be the user.
+drop policy if exists group_relations_select on public.group_relations;
+drop policy if exists group_relations_insert on public.group_relations;
+drop policy if exists group_relations_delete on public.group_relations;
+
+create policy group_relations_select on public.group_relations
+  for select to anon, authenticated
+  using (public.can_read_group(group_low) and public.can_read_group(group_high));
+
+create policy group_relations_insert on public.group_relations
+  for insert to authenticated
+  with check (
+    created_by = auth.uid()
+    and public.can_read_group(group_low)
+    and public.can_read_group(group_high)
+    and (public.can_relate_group(group_low) or public.can_relate_group(group_high))
+  );
+
+create policy group_relations_delete on public.group_relations
+  for delete to authenticated
+  using (
+    public.can_relate_group(group_low) or public.can_relate_group(group_high)
+  );

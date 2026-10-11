@@ -620,3 +620,127 @@ export async function toggleBookmark({
   revalidatePath("/saved");
   return { ok: true, bookmarked: false };
 }
+
+
+/* ── Group relations ── */
+
+function relationPair(a: string, b: string): [string, string] {
+  return a < b ? [a, b] : [b, a];
+}
+
+export async function addRelatedGroup({
+  groupId,
+  otherGroupId,
+}: {
+  groupId: string;
+  otherGroupId: string;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(groupId) || !isUUID(otherGroupId) || groupId === otherGroupId) {
+    return { ok: false, error: "Pick a different group to relate." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to relate groups." };
+
+  const [low, high] = relationPair(groupId, otherGroupId);
+  const { data, error } = await supabase
+    .from("group_relations")
+    .insert({ group_low: low, group_high: high, created_by: user.id })
+    .select("group_low")
+    .maybeSingle<{ group_low: string }>();
+
+  if (error) {
+    console.error("[addRelatedGroup]", error.message);
+    return { ok: false, error: "Could not relate that group." };
+  }
+  if (!data) {
+    // Zero-row insert = RLS blocked (not allowed / already exists).
+    return { ok: false, error: "You can't relate that group." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath(`/groups/${otherGroupId}`);
+  return { ok: true };
+}
+
+export async function removeRelatedGroup({
+  groupId,
+  otherGroupId,
+}: {
+  groupId: string;
+  otherGroupId: string;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(groupId) || !isUUID(otherGroupId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to edit relations." };
+
+  const [low, high] = relationPair(groupId, otherGroupId);
+  const { error } = await supabase
+    .from("group_relations")
+    .delete()
+    .eq("group_low", low)
+    .eq("group_high", high);
+
+  if (error) {
+    console.error("[removeRelatedGroup]", error.message);
+    return { ok: false, error: "Could not remove that relation." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath(`/groups/${otherGroupId}`);
+  return { ok: true };
+}
+
+export async function setRelationsOpen({
+  groupId,
+  open,
+}: {
+  groupId: string;
+  open: boolean;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(groupId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to change this setting." };
+
+  // Only the owner may change the setting; RLS on groups already restricts
+  // UPDATE to the owner, so a zero-row update means "not the owner".
+  const { data, error } = await supabase
+    .from("groups")
+    .update({ relations_open: open })
+    .eq("id", groupId)
+    .eq("owner_id", user.id)
+    .select("id")
+    .maybeSingle<{ id: string }>();
+
+  if (error || !data) {
+    console.error("[setRelationsOpen]", error?.message ?? "not owner");
+    return { ok: false, error: "Only the group owner can change this." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  return { ok: true };
+}

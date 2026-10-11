@@ -22,6 +22,7 @@ export interface Group {
   city: string | null;
   category_slug: string | null;
   scope: GroupScope;
+  relations_open: boolean;
 }
 
 export interface Country {
@@ -38,6 +39,13 @@ export interface GroupCategory {
 export interface GroupTag {
   group_id: string;
   tag: string;
+}
+
+export interface GroupRelation {
+  group_low: string;
+  group_high: string;
+  created_by: string;
+  created_at: string;
 }
 
 export interface GroupMember {
