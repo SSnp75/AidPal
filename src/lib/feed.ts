@@ -159,6 +159,34 @@ export async function fetchTrendingPosts(
 }
 
 /**
+ * Trending posts scoped to a specific set of groups (e.g. a group's related
+ * groups). Pulls recent posts from those groups and ranks them by positive
+ * engagement, reusing enrichPosts so cards render identically to the home feed.
+ * RLS still gates visibility — private groups the viewer can't read are empty.
+ */
+export async function fetchPostsByGroups(
+  supabase: SupabaseClient,
+  groupIds: string[],
+  { days = 30, limit = 30 }: { days?: number; limit?: number } = {}
+): Promise<SamplePost[]> {
+  if (groupIds.length === 0) return [];
+  const sinceIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: posts } = await supabase
+    .from("posts")
+    .select("*")
+    .in("group_id", groupIds)
+    .gte("created_at", sinceIso)
+    .order("created_at", { ascending: false })
+    .limit(limit)
+    .returns<Post[]>();
+
+  if (!posts || posts.length === 0) return [];
+
+  return rankByEngagement(await enrichPosts(supabase, posts));
+}
+
+/**
  * Rank by positive engagement: like + love + comments.
  * Dislikes are ignored (not subtracted) to keep the score monotonic and
  * avoid negative/zeroed trending (per requirements A5).

@@ -11,6 +11,8 @@ import ShareButton from "@/components/ShareButton";
 import JoinButton from "@/components/JoinButton";
 import PostBody from "@/components/PostBody";
 import MyEventsPanel from "@/components/MyEventsPanel";
+import PostCard from "@/components/dashboard/PostCard";
+import { fetchPostsByGroups } from "@/lib/feed";
 import OpenGroupChatButton from "./OpenGroupChatButton";
 import RelatedGroups from "./RelatedGroups";
 import TagEditor from "./TagEditor";
@@ -123,6 +125,10 @@ export default async function GroupDetailPage({
         .returns<{ id: string; name: string }[]>()
     : { data: [] as { id: string; name: string }[] };
   const relatedGroups = relatedRows ?? [];
+
+  // Trending posts from this group's related groups, ranked by engagement.
+  // Rendered as cards in a vertical scroll box in the main column.
+  const relatedPosts = await fetchPostsByGroups(supabase, relatedIds);
 
   // Can the viewer add/remove relations? Owner always; members when open.
   const canRelate = isOwner || (group.relations_open && isMember);
@@ -392,6 +398,24 @@ export default async function GroupDetailPage({
             </ul>
           )}
         </section>
+
+        {/* Trending posts from related groups — card list in a scroll box. */}
+        {relatedPosts.length > 0 && (
+          <section>
+            <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-text-primary">
+              <span aria-hidden="true">🔗</span> From Related Groups
+            </h2>
+            {/* One vertical scroll box; each card is shrink-0 so it keeps
+                full height and the box scrolls instead. */}
+            <div className="max-h-[70vh] space-y-3 overflow-y-auto rounded-xl border border-border p-2">
+              {relatedPosts.map((post) => (
+                <div key={`related-${post.id}`} className="shrink-0">
+                  <PostCard post={post} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
         </main>
 
         <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
