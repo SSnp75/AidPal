@@ -26,7 +26,7 @@ export default function JoinButton({ groupId }: Props) {
 
   if (joined) {
     return (
-      <p className="text-sm text-teal-300">
+      <p className="text-sm text-success">
         You&apos;ve joined. Refresh to post.
       </p>
     );
@@ -38,12 +38,12 @@ export default function JoinButton({ groupId }: Props) {
         type="button"
         onClick={handleClick}
         disabled={isPending}
-        className="rounded bg-teal-600 px-4 py-2 text-sm text-white hover:bg-teal-500 disabled:opacity-50 transition-colors"
+        className="rounded-full bg-accent px-4 py-2 text-sm text-white hover:bg-accent-light disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         {isPending ? "Joining…" : "Join Group"}
       </button>
       {error && (
-        <p role="alert" className="mt-1 text-sm text-red-400">
+        <p role="alert" className="mt-1 text-sm text-reaction-love">
           {error}
         </p>
       )}

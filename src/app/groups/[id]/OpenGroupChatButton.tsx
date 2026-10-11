@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { getOrCreateGroupConversation } from "@/app/messages/actions";
 
 const btnClass =
-  "mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-default disabled:opacity-60";
+  "flex w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-side-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-default disabled:opacity-60";
 
 export default function OpenGroupChatButton({ groupId }: { groupId: string }) {
   const router = useRouter();
@@ -37,7 +37,7 @@ export default function OpenGroupChatButton({ groupId }: { groupId: string }) {
         Open group chat
       </button>
       {error && (
-        <p role="status" aria-live="polite" className="mt-1 text-xs text-gray-400">
+        <p role="status" aria-live="polite" className="mt-1 text-xs text-text-secondary">
           {error}
         </p>
       )}

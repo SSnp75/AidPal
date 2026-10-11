@@ -40,13 +40,13 @@ export default function MediaUploadForm({ groupId }: Props) {
     <form
       ref={formRef}
       action={formAction}
-      className="rounded-xl border border-gray-800 bg-gray-900/50 p-4 space-y-3"
+      className="rounded-2xl border border-border bg-card p-4 sm:p-5 space-y-3"
     >
-      <h2 className="text-sm font-semibold text-gray-300">New Post</h2>
+      <h2 className="text-sm font-semibold text-text-primary">New Post</h2>
       <input type="hidden" name="groupId" value={groupId} />
 
       {state && !state.ok && (
-        <p role="alert" className="text-sm text-red-400">
+        <p role="alert" className="text-sm text-reaction-love">
           {state.error}
         </p>
       )}
@@ -59,14 +59,14 @@ export default function MediaUploadForm({ groupId }: Props) {
           id="post-body"
           name="body"
           maxLength={2000}
-          rows={2}
+          rows={3}
           placeholder="What's happening?"
-          className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+          className="w-full rounded-xl border border-border bg-secondary px-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         />
       </div>
 
       <div>
-        <label htmlFor="post-image" className="block text-sm text-gray-400 mb-1">
+        <label htmlFor="post-image" className="block text-sm text-text-secondary mb-1">
           Image (optional)
         </label>
         <input
@@ -75,14 +75,14 @@ export default function MediaUploadForm({ groupId }: Props) {
           type="file"
           accept="image/jpeg,image/png,image/webp,image/gif"
           onChange={handleFileChange}
-          className="text-sm text-gray-400 file:mr-3 file:rounded file:border-0 file:bg-gray-700 file:px-3 file:py-1.5 file:text-sm file:text-white hover:file:bg-gray-600"
+          className="text-sm text-text-secondary file:mr-3 file:rounded-full file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:text-text-primary hover:file:bg-accent-light hover:file:text-white"
         />
       </div>
 
       <button
         type="submit"
         disabled={pending}
-        className="rounded bg-teal-600 px-4 py-2 text-sm text-white font-medium hover:bg-teal-500 disabled:opacity-50 transition-colors"
+        className="rounded-full bg-accent px-5 py-2 text-sm text-white font-medium hover:bg-accent-light disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-card"
       >
         {pending ? "Posting…" : "Post"}
       </button>

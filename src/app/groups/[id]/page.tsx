@@ -236,25 +236,25 @@ export default async function GroupDetailPage({
     <div className="mx-auto w-full max-w-6xl px-4 py-8">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_20rem]">
         <main className="min-w-0 space-y-6">
-        <header>
-          <h1 className="text-2xl font-bold text-teal-400">{group.name}</h1>
+        <header className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+          <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">{group.name}</h1>
           {group.is_private && (
-            <span className="inline-block mt-1 rounded bg-gray-800 px-2 py-0.5 text-xs text-gray-400">
+            <span className="inline-block mt-1 rounded-full bg-secondary px-2 py-0.5 text-xs text-text-secondary">
               Private
             </span>
           )}
           {group.description && (
-            <p className="mt-2 text-gray-300">{group.description}</p>
+            <p className="mt-2 leading-relaxed text-text-secondary">{group.description}</p>
           )}
 
           {/* Organization metadata */}
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-text-secondary">
             {groupCategory && (
-              <span className="rounded-full bg-gray-800 px-2 py-0.5">
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-text-primary">
                 {groupCategory.label}
               </span>
             )}
-            <span className="rounded-full bg-gray-800 px-2 py-0.5 capitalize">
+            <span className="rounded-full bg-secondary px-2 py-0.5 capitalize text-text-primary">
               {group.scope}
             </span>
             {groupCountry ? (
@@ -272,7 +272,7 @@ export default async function GroupDetailPage({
               {groupTags.map((t) => (
                 <span
                   key={t.tag}
-                  className="rounded-full bg-gray-800 px-2 py-0.5 text-xs text-teal-300"
+                  className="rounded-full bg-secondary px-2 py-0.5 text-xs text-accent"
                 >
                   #{t.tag}
                 </span>
@@ -288,12 +288,12 @@ export default async function GroupDetailPage({
           ) : !group.is_private ? (
             <JoinButton groupId={group.id} />
           ) : (
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-text-secondary">
               This is a private group. You need an invitation to participate.
             </p>
           )
         ) : (
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-text-secondary">
             Sign in to join this group and post.
           </p>
         )}
@@ -319,9 +319,9 @@ export default async function GroupDetailPage({
                 return (
                   <li
                     key={post.id}
-                    className="overflow-hidden rounded-xl border border-border bg-card p-2"
+                    className="overflow-hidden rounded-xl border border-border bg-card p-3 sm:p-4"
                   >
-                    <p className="text-[10px] text-text-secondary mb-1">{authorName}</p>
+                    <p className="text-xs text-text-secondary mb-1">{authorName}</p>
 
                     {post.body && (
                       <PostBody text={post.body} className="text-[15px] text-text-primary whitespace-pre-wrap leading-snug mb-1.5" />

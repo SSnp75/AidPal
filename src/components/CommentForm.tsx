@@ -37,12 +37,12 @@ export default function CommentForm({ postId }: Props) {
         aria-describedby={
           state && !state.ok ? `comment-err-${postId}` : undefined
         }
-        className="flex-1 rounded border border-gray-700 bg-gray-900 px-3 py-1.5 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+        className="flex-1 rounded-full border border-border bg-secondary px-3 py-1.5 text-sm text-text-primary placeholder:text-text-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       />
       <button
         type="submit"
         disabled={pending}
-        className="rounded bg-teal-600 px-3 py-1.5 text-sm text-white hover:bg-teal-500 disabled:opacity-50 transition-colors"
+        className="rounded-full bg-accent px-3 py-1.5 text-sm text-white hover:bg-accent-light disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
       >
         {pending ? "…" : "Post"}
       </button>
@@ -50,7 +50,7 @@ export default function CommentForm({ postId }: Props) {
         <p
           id={`comment-err-${postId}`}
           role="alert"
-          className="text-xs text-red-400"
+          className="text-xs text-reaction-love"
         >
           {state.error}
         </p>
