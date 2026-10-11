@@ -283,11 +283,11 @@ export default async function GroupDetailPage({
                     </div>
 
                     {/* Comments */}
-                    <div className="mt-3 border-t border-gray-800 pt-3">
+                    <div className="mt-2 border-t border-gray-800 pt-2">
                       {comments.length > 0 && (
-                        <ul className="space-y-2 mb-2">
+                        <ul className="space-y-1 mb-1">
                           {comments.map((c) => (
-                            <li key={c.id} className="text-sm">
+                            <li key={c.id} className="text-sm leading-snug">
                               <span className="text-gray-400">
                                 {authorNames.get(c.author_id) ?? "Someone"}:
                               </span>{" "}
