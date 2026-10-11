@@ -3,8 +3,12 @@
 import { useActionState } from "react";
 import { createGroup } from "@/app/groups/actions";
 import type { ActionResult } from "@/app/auth/actions";
-
 import type { Country, GroupCategory } from "@/types/db";
+
+const inputClass =
+  "w-full rounded-lg border border-border bg-secondary px-3 py-2 text-text-primary placeholder:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+const labelClass = "block text-sm text-text-secondary mb-1";
+const errClass = "mt-1 text-sm text-reaction-love";
 
 export default function NewGroupForm({
   countries,
@@ -18,22 +22,21 @@ export default function NewGroupForm({
     FormData
   >(createGroup, null);
 
-  const fieldErrors =
-    state && !state.ok ? state.fieldErrors ?? {} : {};
+  const fieldErrors = state && !state.ok ? state.fieldErrors ?? {} : {};
 
   return (
     <div className="mx-auto max-w-md">
-      <h1 className="text-2xl font-bold text-teal-400 mb-6">Create a Group</h1>
+      <h1 className="text-2xl font-bold text-accent mb-6">Create a Group</h1>
 
       <form action={formAction} className="space-y-4">
         {state && !state.ok && !state.fieldErrors && (
-          <p role="alert" className="text-red-400 text-sm">
+          <p role="alert" className="text-sm text-reaction-love">
             {state.error}
           </p>
         )}
 
         <div>
-          <label htmlFor="name" className="block text-sm text-gray-300 mb-1">
+          <label htmlFor="name" className={labelClass}>
             Group name
           </label>
           <input
@@ -43,20 +46,17 @@ export default function NewGroupForm({
             required
             maxLength={100}
             aria-describedby={fieldErrors.name ? "name-error" : undefined}
-            className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+            className={inputClass}
           />
           {fieldErrors.name && (
-            <p id="name-error" className="mt-1 text-sm text-red-400">
+            <p id="name-error" className={errClass}>
               {fieldErrors.name}
             </p>
           )}
         </div>
 
         <div>
-          <label
-            htmlFor="description"
-            className="block text-sm text-gray-300 mb-1"
-          >
+          <label htmlFor="description" className={labelClass}>
             Description (optional)
           </label>
           <textarea
@@ -65,18 +65,18 @@ export default function NewGroupForm({
             maxLength={1000}
             rows={3}
             aria-describedby={fieldErrors.description ? "desc-error" : undefined}
-            className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+            className={inputClass}
           />
           {fieldErrors.description && (
-            <p id="desc-error" className="mt-1 text-sm text-red-400">
+            <p id="desc-error" className={errClass}>
               {fieldErrors.description}
             </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="category" className="block text-sm text-gray-300 mb-1">
-            Category <span className="text-red-400">*</span>
+          <label htmlFor="category" className={labelClass}>
+            Category <span className="text-reaction-love">*</span>
           </label>
           <select
             id="category"
@@ -84,7 +84,7 @@ export default function NewGroupForm({
             required
             defaultValue=""
             aria-describedby={fieldErrors.category ? "category-error" : undefined}
-            className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+            className={inputClass}
           >
             <option value="" disabled>
               Select a category…
@@ -96,14 +96,14 @@ export default function NewGroupForm({
             ))}
           </select>
           {fieldErrors.category && (
-            <p id="category-error" className="mt-1 text-sm text-red-400">
+            <p id="category-error" className={errClass}>
               {fieldErrors.category}
             </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="country-input" className="block text-sm text-gray-300 mb-1">
+          <label htmlFor="country-input" className={labelClass}>
             Country (optional)
           </label>
           <select
@@ -111,7 +111,7 @@ export default function NewGroupForm({
             name="country"
             defaultValue=""
             aria-describedby={fieldErrors.country ? "country-error" : undefined}
-            className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+            className={inputClass}
           >
             <option value="">— No country (global / online) —</option>
             {countries.map((c) => (
@@ -122,14 +122,14 @@ export default function NewGroupForm({
             ))}
           </select>
           {fieldErrors.country && (
-            <p id="country-error" className="mt-1 text-sm text-red-400">
+            <p id="country-error" className={errClass}>
               {fieldErrors.country}
             </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="city" className="block text-sm text-gray-300 mb-1">
+          <label htmlFor="city" className={labelClass}>
             City (optional)
           </label>
           <input
@@ -138,24 +138,24 @@ export default function NewGroupForm({
             type="text"
             maxLength={100}
             aria-describedby={fieldErrors.city ? "city-error" : undefined}
-            className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+            className={inputClass}
           />
           {fieldErrors.city && (
-            <p id="city-error" className="mt-1 text-sm text-red-400">
+            <p id="city-error" className={errClass}>
               {fieldErrors.city}
             </p>
           )}
         </div>
 
         <div>
-          <label htmlFor="scope" className="block text-sm text-gray-300 mb-1">
+          <label htmlFor="scope" className={labelClass}>
             Scope
           </label>
           <select
             id="scope"
             name="scope"
             defaultValue="local"
-            className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+            className={inputClass}
           >
             <option value="local">Local</option>
             <option value="national">National</option>
@@ -164,7 +164,7 @@ export default function NewGroupForm({
         </div>
 
         <div>
-          <label htmlFor="tags" className="block text-sm text-gray-300 mb-1">
+          <label htmlFor="tags" className={labelClass}>
             Tags (optional)
           </label>
           <input
@@ -173,14 +173,12 @@ export default function NewGroupForm({
             type="text"
             placeholder="beach-cleanup, tree-planting"
             aria-describedby="tags-help"
-            className="w-full rounded border border-gray-700 bg-gray-900 px-3 py-2 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+            className={inputClass}
           />
-          <p id="tags-help" className="mt-1 text-xs text-gray-500">
+          <p id="tags-help" className="mt-1 text-xs text-text-secondary">
             Up to 10, comma-separated. Spaces become hyphens; lowercased.
           </p>
-          {fieldErrors.tags && (
-            <p className="mt-1 text-sm text-red-400">{fieldErrors.tags}</p>
-          )}
+          {fieldErrors.tags && <p className={errClass}>{fieldErrors.tags}</p>}
         </div>
 
         <div className="flex items-center gap-2">
@@ -188,9 +186,9 @@ export default function NewGroupForm({
             id="isPrivate"
             name="isPrivate"
             type="checkbox"
-            className="h-4 w-4 rounded border-gray-700 bg-gray-900 text-teal-600 focus-visible:ring-2 focus-visible:ring-teal-500"
+            className="h-4 w-4 rounded border-border bg-secondary text-accent focus-visible:ring-2 focus-visible:ring-accent"
           />
-          <label htmlFor="isPrivate" className="text-sm text-gray-300">
+          <label htmlFor="isPrivate" className="text-sm text-text-secondary">
             Make this group private
           </label>
         </div>
@@ -198,7 +196,7 @@ export default function NewGroupForm({
         <button
           type="submit"
           disabled={pending}
-          className="w-full rounded bg-teal-600 px-4 py-2 text-white font-medium hover:bg-teal-500 disabled:opacity-50 transition-colors"
+          className="w-full rounded-lg bg-accent px-4 py-2 font-medium text-white transition-colors hover:bg-accent-light disabled:opacity-50"
         >
           {pending ? "Creating…" : "Create Group"}
         </button>

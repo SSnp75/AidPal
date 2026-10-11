@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  /* Clean white / light theme — no bright colours */
-  --primary: #fbfcfe;        /* page background — faintest blue-white */
+  /* Clean light-grey theme — no bright colours */
+  --primary: #e9eaec;        /* page background — light grey */
   --secondary: #eef1f8;      /* raised surfaces / input bg */
-  --card-bg: #f5f7fd;         /* center cards — lighter blue than sides */
-  --border: #e4e9f3;
+  --card-bg: #f7f8fa;         /* center cards — near-white on grey */
+  --border: #d9dce2;
   --accent: #4a5568;          /* primary action — muted slate */
   --accent-light: #636e7f;    /* hover */
   --text-primary: #1a1a1a;

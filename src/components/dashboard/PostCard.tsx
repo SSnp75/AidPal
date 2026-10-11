@@ -7,11 +7,11 @@ import ShareButton from "@/components/ShareButton";
 import type { SamplePost } from "@/lib/sampleFeed";
 
 const engagementBtn =
-  "flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-text-secondary transition-colors disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-text-secondary transition-colors disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
 export default function PostCard({ post }: { post: SamplePost }) {
   return (
-    <article className="overflow-hidden rounded-2xl border border-border bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+    <article className="overflow-hidden rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
       {/* Author row */}
       <div className="flex items-start gap-3">
         <Avatar name={post.authorName} />
@@ -36,23 +36,25 @@ export default function PostCard({ post }: { post: SamplePost }) {
       </div>
 
       {/* Body — URLs rendered as clickable links */}
-      <PostBody
-        text={post.body}
-        className="mt-3 whitespace-pre-wrap text-text-primary leading-relaxed"
-      />
+      {post.body && (
+        <PostBody
+          text={post.body}
+          className="mt-2 whitespace-pre-wrap text-text-primary leading-snug"
+        />
+      )}
 
       {/* Post image — edge-to-edge (full-bleed), only when present (EC-9) */}
       {post.imageUrl && (
         <img
           src={post.imageUrl}
           alt={`Image posted by ${post.authorName}`}
-          className="mt-3 -mx-5 w-[calc(100%+2.5rem)] max-w-none max-h-[42rem] object-cover"
+          className="mt-2 -mx-4 w-[calc(100%+2rem)] max-w-none max-h-[42rem] object-cover"
         />
       )}
 
       {/* Hashtags */}
       {post.hashtags.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-2 flex flex-wrap gap-2">
           {post.hashtags.map((tag) => (
             <span
               key={tag}
@@ -65,7 +67,7 @@ export default function PostCard({ post }: { post: SamplePost }) {
       )}
 
       {/* Engagement row */}
-      <div className="mt-4 flex items-center gap-2 border-t border-border pt-3">
+      <div className="mt-3 flex items-center gap-2 border-t border-border pt-2">
         <ReactionBar
           postId={post.id}
           initialCounts={post.reactions}
