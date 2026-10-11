@@ -18,6 +18,8 @@ import {
   validateCity,
   validateCountryCode,
   validateTags,
+  normalizeTag,
+  MAX_TAGS,
 } from "@/lib/validation";
 import { isReactionType } from "@/lib/validation";
 import { buildMediaKey } from "@/lib/storage-path";
@@ -741,6 +743,134 @@ export async function setRelationsOpen({
   if (error || !data) {
     console.error("[setRelationsOpen]", error?.message ?? "not owner");
     return { ok: false, error: "Only the group owner can change this." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  return { ok: true };
+}
+
+
+/* ── Group tags (any member can edit) ── */
+
+export async function addGroupTag({
+  groupId,
+  tag,
+}: {
+  groupId: string;
+  tag: string;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(groupId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to edit tags." };
+
+  const normalized = normalizeTag(typeof tag === "string" ? tag : "");
+  if (!normalized) {
+    return { ok: false, error: "Enter a valid tag." };
+  }
+
+  // Enforce the per-group cap before adding.
+  const { data: existing } = await supabase
+    .from("group_tags")
+    .select("tag")
+    .eq("group_id", groupId)
+    .returns<{ tag: string }[]>();
+  if ((existing ?? []).some((t) => t.tag === normalized)) {
+    return { ok: true }; // already present — no-op
+  }
+  if ((existing ?? []).length >= MAX_TAGS) {
+    return { ok: false, error: `A group can have at most ${MAX_TAGS} tags.` };
+  }
+
+  const { error } = await supabase.rpc("add_group_tag", {
+    _group: groupId,
+    _tag: normalized,
+  });
+  if (error) {
+    console.error("[addGroupTag]", error.message);
+    return { ok: false, error: "Could not add that tag." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  return { ok: true };
+}
+
+export async function removeGroupTag({
+  groupId,
+  tag,
+}: {
+  groupId: string;
+  tag: string;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(groupId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to edit tags." };
+
+  const { error } = await supabase.rpc("remove_group_tag", {
+    _group: groupId,
+    _tag: tag,
+  });
+  if (error) {
+    console.error("[removeGroupTag]", error.message);
+    return { ok: false, error: "Could not remove that tag." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  return { ok: true };
+}
+
+/* ── Group member roles (owner-only promote/demote) ── */
+
+export async function setGroupMemberRole({
+  groupId,
+  userId,
+  role,
+}: {
+  groupId: string;
+  userId: string;
+  role: "moderator" | "member";
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(groupId) || !isUUID(userId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+  if (role !== "moderator" && role !== "member") {
+    return { ok: false, error: "Invalid role." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to manage roles." };
+
+  const { data, error } = await supabase.rpc("set_group_member_role", {
+    _group: groupId,
+    _user: userId,
+    _role: role,
+  });
+  if (error || data !== true) {
+    console.error("[setGroupMemberRole]", error?.message ?? "no change");
+    return { ok: false, error: "Only the group owner can change roles." };
   }
 
   revalidatePath(`/groups/${groupId}`);

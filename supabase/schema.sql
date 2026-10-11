@@ -1824,3 +1824,97 @@ create policy group_relations_delete on public.group_relations
   using (
     public.can_relate_group(group_low) or public.can_relate_group(group_high)
   );
+
+-- ============================================================
+-- MODERATOR ROLE + member tag editing
+-- Idempotent. Adds 'moderator' to group_members.role, an owner-only
+-- promote/demote RPC, and member-gated add/remove tag RPCs.
+-- ============================================================
+
+-- 1. Extend the role CHECK to allow 'moderator' (guarded drop + add).
+--    Constraint name is Postgres's default for the inline column CHECK.
+alter table public.group_members drop constraint if exists group_members_role_check;
+alter table public.group_members add constraint group_members_role_check
+  check (role in ('owner','moderator','member'));
+
+-- 2. Owner-only promote/demote: set a member's role to 'moderator' or 'member'.
+--    Cannot change the owner's own row; target must be an existing member.
+create or replace function public.set_group_member_role(
+  _group uuid, _user uuid, _role text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  is_owner boolean;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+  if _role not in ('moderator','member') then
+    raise exception 'invalid role' using errcode = '22023';
+  end if;
+
+  select exists (
+    select 1 from groups g where g.id = _group and g.owner_id = auth.uid()
+  ) into is_owner;
+  if not is_owner then
+    raise exception 'only the owner can change roles' using errcode = '42501';
+  end if;
+
+  -- Never change the owner's own membership row.
+  update group_members
+     set role = _role
+   where group_id = _group
+     and user_id = _user
+     and role <> 'owner';
+
+  return found;
+end;
+$$;
+
+-- 3. Member-gated tag editing: any member of the group may add/remove tags.
+create or replace function public.add_group_tag(_group uuid, _tag text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  t text;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+  if not public.is_group_member(_group) then
+    raise exception 'must be a group member' using errcode = '42501';
+  end if;
+  t := _tag;
+  if t is null or char_length(t) < 1 or char_length(t) > 30 then
+    raise exception 'invalid tag' using errcode = '22023';
+  end if;
+  insert into group_tags (group_id, tag) values (_group, t)
+  on conflict (group_id, tag) do nothing;
+  return true;
+end;
+$$;
+
+create or replace function public.remove_group_tag(_group uuid, _tag text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+  if not public.is_group_member(_group) then
+    raise exception 'must be a group member' using errcode = '42501';
+  end if;
+  delete from group_tags where group_id = _group and tag = _tag;
+  return true;
+end;
+$$;

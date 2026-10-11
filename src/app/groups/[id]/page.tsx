@@ -13,6 +13,8 @@ import PostBody from "@/components/PostBody";
 import MyEventsPanel from "@/components/MyEventsPanel";
 import OpenGroupChatButton from "./OpenGroupChatButton";
 import RelatedGroups from "./RelatedGroups";
+import TagEditor from "./TagEditor";
+import MembersPanel from "./MembersPanel";
 import type { Group, Post, Media, Comment, Profile, ReactionType, Country, GroupCategory, GroupTag } from "@/types/db";
 
 export default async function GroupDetailPage({
@@ -51,6 +53,32 @@ export default async function GroupDetailPage({
       gid: id,
     });
     isMember = Boolean(membership);
+  }
+
+  const isOwner = Boolean(user) && group.owner_id === user!.id;
+
+  // Members list (for the owner's role-management panel).
+  let members: { user_id: string; role: string; name: string }[] = [];
+  if (isOwner) {
+    const { data: mems } = await supabase
+      .from("group_members")
+      .select("user_id, role")
+      .eq("group_id", id)
+      .returns<{ user_id: string; role: string }[]>();
+    const memIds = (mems ?? []).map((m) => m.user_id);
+    const { data: memProfiles } = memIds.length
+      ? await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", memIds)
+          .returns<{ id: string; display_name: string }[]>()
+      : { data: [] as { id: string; display_name: string }[] };
+    const nameOf = new Map((memProfiles ?? []).map((p) => [p.id, p.display_name]));
+    members = (mems ?? []).map((m) => ({
+      user_id: m.user_id,
+      role: m.role,
+      name: nameOf.get(m.user_id) ?? "Member",
+    }));
   }
 
   // Organization metadata (category label, country, tags) — additive.
@@ -97,7 +125,6 @@ export default async function GroupDetailPage({
   const relatedGroups = relatedRows ?? [];
 
   // Can the viewer add/remove relations? Owner always; members when open.
-  const isOwner = Boolean(user) && group.owner_id === user!.id;
   const canRelate = isOwner || (group.relations_open && isMember);
 
   // Suggested groups to relate: groups the viewer created or belongs to,
@@ -267,18 +294,12 @@ export default async function GroupDetailPage({
             )}
           </div>
 
-          {groupTags && groupTags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {groupTags.map((t) => (
-                <span
-                  key={t.tag}
-                  className="rounded-full bg-secondary px-2 py-0.5 text-xs text-accent"
-                >
-                  #{t.tag}
-                </span>
-              ))}
-            </div>
-          )}
+          {/* Tags — any member can add/remove; others see read-only chips. */}
+          <TagEditor
+            groupId={group.id}
+            initialTags={(groupTags ?? []).map((t) => t.tag)}
+            canEdit={isMember}
+          />
         </header>
 
         {/* Join / Post controls */}
@@ -304,7 +325,7 @@ export default async function GroupDetailPage({
           {!posts || posts.length === 0 ? (
             <p className="text-text-secondary">No posts yet.</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="max-h-[70vh] space-y-3 overflow-y-auto rounded-xl border border-border p-2">
               {posts.map((post) => {
                 const media = mediaByPost.get(post.id);
                 const comments = commentsByPost.get(post.id) ?? [];
@@ -374,6 +395,17 @@ export default async function GroupDetailPage({
         </main>
 
         <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
+          {/* AI thinks — placeholder for upcoming AI insights on this issue. */}
+          <section className="min-h-[25vh] rounded-2xl border border-side-border bg-side-card p-4">
+            <h2 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-secondary">
+              <span aria-hidden="true">🤖</span> AI thinks
+            </h2>
+            <p className="text-sm text-text-secondary/80">
+              AI insights about this issue are coming soon — summaries,
+              suggested actions, and who might help.
+            </p>
+          </section>
+
           {/* Create a new group — quick access from within a group. */}
           <Link
             href="/groups/new"
@@ -402,6 +434,11 @@ export default async function GroupDetailPage({
             isOwner={isOwner}
             relationsOpen={group.relations_open}
           />
+
+          {/* Owner-only: manage member roles (promote/demote moderators). */}
+          {isOwner && members.length > 0 && (
+            <MembersPanel groupId={group.id} initialMembers={members} />
+          )}
 
           {user && isMember && <OpenGroupChatButton groupId={group.id} />}
 
