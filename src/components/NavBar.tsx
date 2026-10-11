@@ -26,7 +26,7 @@ export default async function NavBar() {
           href="/"
           className="text-xl font-bold text-text-primary transition-colors hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
         >
-          AidPal
+          aidPAL
         </Link>
 
         <ul className="flex items-center gap-4 text-sm">

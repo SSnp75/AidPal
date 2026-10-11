@@ -233,11 +233,11 @@ export default async function GroupDetailPage({
 
         {/* Posts */}
         <section>
-          <h2 className="text-lg font-semibold text-gray-200 mb-3">Posts</h2>
+          <h2 className="text-lg font-semibold text-text-primary mb-3">Posts</h2>
           {!posts || posts.length === 0 ? (
-            <p className="text-gray-400">No posts yet.</p>
+            <p className="text-text-secondary">No posts yet.</p>
           ) : (
-            <ul className="space-y-6">
+            <ul className="space-y-3">
               {posts.map((post) => {
                 const media = mediaByPost.get(post.id);
                 const comments = commentsByPost.get(post.id) ?? [];
@@ -252,23 +252,23 @@ export default async function GroupDetailPage({
                 return (
                   <li
                     key={post.id}
-                    className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900/50 p-4"
+                    className="overflow-hidden rounded-xl border border-border bg-card p-2"
                   >
-                    <p className="text-xs text-gray-500 mb-2">{authorName}</p>
+                    <p className="text-[10px] text-text-secondary mb-1">{authorName}</p>
 
                     {post.body && (
-                      <PostBody text={post.body} className="text-gray-200 whitespace-pre-wrap mb-3" />
+                      <PostBody text={post.body} className="text-[15px] text-text-primary whitespace-pre-wrap leading-snug mb-1.5" />
                     )}
 
                     {media && (
                       <img
                         src={publicUrl(media.storage_path)}
                         alt={`Image posted by ${authorName} in ${group.name}`}
-                        className="mb-3 -mx-4 w-[calc(100%+2rem)] max-w-none max-h-[42rem] object-cover"
+                        className="mb-1.5 -mx-2 w-[calc(100%+1rem)] max-w-none max-h-[42rem] object-cover"
                       />
                     )}
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-0.5 border-t border-border pt-1">
                       <ReactionBar
                         postId={post.id}
                         initialCounts={reactionInfo.counts}
@@ -283,15 +283,15 @@ export default async function GroupDetailPage({
                     </div>
 
                     {/* Comments */}
-                    <div className="mt-2 border-t border-gray-800 pt-2">
+                    <div className="mt-1.5 border-t border-border pt-1.5">
                       {comments.length > 0 && (
                         <ul className="space-y-1 mb-1">
                           {comments.map((c) => (
-                            <li key={c.id} className="text-sm leading-snug">
-                              <span className="text-gray-400">
+                            <li key={c.id} className="text-[15px] leading-snug">
+                              <span className="text-text-secondary">
                                 {authorNames.get(c.author_id) ?? "Someone"}:
                               </span>{" "}
-                              <span className="text-gray-200">{c.body}</span>
+                              <span className="text-text-primary">{c.body}</span>
                             </li>
                           ))}
                         </ul>

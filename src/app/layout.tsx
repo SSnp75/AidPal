@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AidPal — Community Good, Organized",
+  title: "aidPAL — Community Good, Organized",
   description:
     "A social network that turns community goodwill into organized action.",
 };

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 export const metadata = {
-  title: "Email verified — AidPal",
+  title: "Email verified — aidPAL",
 };
 
 export default function VerifiedPage() {
@@ -32,7 +32,7 @@ export default function VerifiedPage() {
           </h1>
           <p className="text-sm text-foreground/70">
             Your email address has been confirmed and your account is ready. Set
-            up your profile to get started on AidPal.
+            up your profile to get started on aidPAL.
           </p>
         </div>
 

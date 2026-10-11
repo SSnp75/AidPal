@@ -7,16 +7,16 @@ import ShareButton from "@/components/ShareButton";
 import type { SamplePost } from "@/lib/sampleFeed";
 
 const engagementBtn =
-  "flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm text-text-secondary transition-colors disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] leading-none text-text-secondary transition-colors disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
 export default function PostCard({ post }: { post: SamplePost }) {
   return (
-    <article className="overflow-hidden rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+    <article className="overflow-hidden rounded-xl border border-border bg-card p-2 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg">
       {/* Author row */}
-      <div className="flex items-start gap-3">
-        <Avatar name={post.authorName} />
+      <div className="flex items-start gap-2">
+        <Avatar name={post.authorName} sizeClass="h-6 w-6 text-[10px]" />
         <div className="flex-1 min-w-0">
-          <p className="flex items-center gap-1.5 text-sm">
+          <p className="flex items-center gap-1.5 text-xs">
             <span className="font-semibold text-text-primary">
               {post.authorName}
             </span>
@@ -29,7 +29,7 @@ export default function PostCard({ post }: { post: SamplePost }) {
           type="button"
           disabled
           aria-label="Post options"
-          className="shrink-0 rounded-lg p-1 text-text-secondary/50 transition-colors disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="shrink-0 rounded-lg p-0.5 text-text-secondary/50 transition-colors disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <span aria-hidden="true">⋯</span>
         </button>
@@ -39,7 +39,7 @@ export default function PostCard({ post }: { post: SamplePost }) {
       {post.body && (
         <PostBody
           text={post.body}
-          className="mt-2 whitespace-pre-wrap text-text-primary leading-snug"
+          className="mt-1.5 whitespace-pre-wrap text-[15px] text-text-primary leading-snug"
         />
       )}
 
@@ -48,13 +48,13 @@ export default function PostCard({ post }: { post: SamplePost }) {
         <img
           src={post.imageUrl}
           alt={`Image posted by ${post.authorName}`}
-          className="mt-2 -mx-4 w-[calc(100%+2rem)] max-w-none max-h-[42rem] object-cover"
+          className="mt-1.5 -mx-3 w-[calc(100%+1.5rem)] max-w-none max-h-[42rem] object-cover"
         />
       )}
 
       {/* Hashtags */}
       {post.hashtags.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-1.5 flex flex-wrap gap-2">
           {post.hashtags.map((tag) => (
             <span
               key={tag}
@@ -67,7 +67,7 @@ export default function PostCard({ post }: { post: SamplePost }) {
       )}
 
       {/* Engagement row */}
-      <div className="mt-3 flex items-center gap-2 border-t border-border pt-2">
+      <div className="mt-1.5 flex items-center gap-0.5 border-t border-border pt-1">
         <ReactionBar
           postId={post.id}
           initialCounts={post.reactions}
@@ -80,7 +80,8 @@ export default function PostCard({ post }: { post: SamplePost }) {
             aria-label={`Comment, ${post.comments} comments`}
             className={engagementBtn}
           >
-            <span aria-hidden="true">💬</span> {post.comments}
+            <span aria-hidden="true" className="text-[14px] leading-none">💬</span>{" "}
+            {post.comments}
           </Link>
         ) : (
           <button
@@ -89,7 +90,8 @@ export default function PostCard({ post }: { post: SamplePost }) {
             aria-label={`Comment, ${post.comments} comments`}
             className={engagementBtn}
           >
-            <span aria-hidden="true">💬</span> {post.comments}
+            <span aria-hidden="true" className="text-[14px] leading-none">💬</span>{" "}
+            {post.comments}
           </button>
         )}
         <BookmarkButton

@@ -5,7 +5,7 @@ import SupabaseNotConfigured from "@/components/SupabaseNotConfigured";
 import { escapePostgrestLike } from "@/lib/validation";
 import type { Group, Country, GroupCategory } from "@/types/db";
 
-export const metadata = { title: "Browse Groups — AidPal" };
+export const metadata = { title: "Browse Groups — aidPAL" };
 
 type Search = {
   country?: string;

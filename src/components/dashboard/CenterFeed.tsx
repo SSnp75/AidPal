@@ -12,7 +12,7 @@ export default function CenterFeed({
   trendingPosts: SamplePost[];
 }) {
   return (
-    <section className="flex flex-col gap-5">
+    <section className="flex flex-col gap-3">
       {/* Create-post composer */}
       <div className="rounded-2xl border border-border bg-card p-5">
         <div className="flex gap-3">

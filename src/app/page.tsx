@@ -26,7 +26,7 @@ export default async function HomePage() {
       <div className="mx-auto w-full max-w-5xl px-4 py-8">
         <section className="text-center py-16">
           <h1 className="text-4xl font-bold text-accent mb-4">
-            Welcome to AidPal
+            Welcome to aidPAL
           </h1>
           <p className="text-text-secondary max-w-xl mx-auto mb-8">
             A social network that turns community goodwill into organized

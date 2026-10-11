@@ -27,7 +27,7 @@ const activeToken: Record<ReactionType, string> = {
 };
 
 const btnBase =
-  "inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm transition-colors disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] leading-none transition-colors disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
 function labelFor(type: ReactionType, counts: Counts): string {
   const n = counts[type];
@@ -108,7 +108,9 @@ export default function ReactionBar({
               isActive ? activeToken[type] : "text-text-secondary hover:text-text-primary"
             }`}
           >
-            <span aria-hidden="true">{glyph}</span>
+            <span aria-hidden="true" className="text-[14px] leading-none">
+              {glyph}
+            </span>
             <span>{counts[type]}</span>
           </button>
         );
