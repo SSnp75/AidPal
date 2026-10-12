@@ -232,6 +232,11 @@ describe("extractTagsFromBody", () => {
     expect(extractTagsFromBody("#Nepal, flood")).toEqual(["nepal"]);
   });
 
+  it("allows optional spaces between the sigil and the word", () => {
+    expect(extractTagsFromBody("# Nepal")).toEqual(["nepal"]);
+    expect(extractTagsFromBody("#  flood relief")).toEqual(["flood"]);
+  });
+
   it("normalizes to lowercase and dedupes", () => {
     expect(extractTagsFromBody("#Nepal #nepal #NEPAL")).toEqual(["nepal"]);
   });
@@ -242,8 +247,15 @@ describe("extractTagsFromBody", () => {
     ]);
   });
 
-  it("ignores a bare sigil with no word", () => {
-    expect(extractTagsFromBody("price is $ and 50% off & more")).toEqual([]);
+  it("ignores a sigil at end of string with no following word", () => {
+    expect(extractTagsFromBody("the price is $")).toEqual([]);
+    expect(extractTagsFromBody("50% ")).toEqual([]);
+  });
+
+  it("binds a sigil to the next word even across a space", () => {
+    // Consequence of 'first word after the sigil': a space-separated word
+    // after any sigil is captured.
+    expect(extractTagsFromBody("$ and")).toEqual(["and"]);
   });
 
   it("returns empty for no sigils", () => {
