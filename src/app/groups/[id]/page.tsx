@@ -291,8 +291,25 @@ export default async function GroupDetailPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_20rem]">
+    <div className="mx-auto w-full max-w-7xl px-4 py-8">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[16rem_1fr_20rem]">
+        {/* Left sidebar — Related groups + the viewer's events. */}
+        <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start lg:order-first">
+          {/* Related groups — link this group to other existing groups. */}
+          <RelatedGroups
+            groupId={group.id}
+            related={relatedGroups}
+            suggestions={relationSuggestions}
+            canRelate={canRelate}
+            isOwner={isOwner}
+            relationsOpen={group.relations_open}
+          />
+
+          {/* The user's own/interested/volunteering events across ALL
+              groups and scopes — not limited to this group. */}
+          {user && <MyEventsPanel />}
+        </aside>
+
         <main className="min-w-0 space-y-6">
         <header className="rounded-2xl border border-border bg-card p-5 sm:p-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">{group.name}</h1>
@@ -522,16 +539,6 @@ export default async function GroupDetailPage({
             </Link>
           )}
 
-          {/* Related groups — link this group to other existing groups. */}
-          <RelatedGroups
-            groupId={group.id}
-            related={relatedGroups}
-            suggestions={relationSuggestions}
-            canRelate={canRelate}
-            isOwner={isOwner}
-            relationsOpen={group.relations_open}
-          />
-
           {/* Owner-only: manage member roles (promote/demote moderators). */}
           {isOwner && members.length > 0 && (
             <MembersPanel groupId={group.id} initialMembers={members} />
@@ -548,10 +555,6 @@ export default async function GroupDetailPage({
           )}
 
           {user && isMember && <OpenGroupChatButton groupId={group.id} />}
-
-          {/* The user's own/interested/volunteering events across ALL
-              groups and scopes — not limited to this group. */}
-          {user && <MyEventsPanel />}
         </aside>
       </div>
     </div>
