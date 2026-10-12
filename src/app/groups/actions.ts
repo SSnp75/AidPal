@@ -923,3 +923,36 @@ export async function setGroupMemberRole({
   revalidatePath(`/groups/${groupId}`);
   return { ok: true };
 }
+
+/* ── deleteGroup (owner-only hard delete) ── */
+
+export async function deleteGroup({
+  groupId,
+}: {
+  groupId: string;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(groupId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to delete a group." };
+
+  const { data, error } = await supabase.rpc("delete_group", {
+    _group: groupId,
+  });
+  if (error || data !== true) {
+    console.error("[deleteGroup]", error?.message ?? "no change");
+    return { ok: false, error: "Only the group owner can delete this group." };
+  }
+
+  revalidatePath("/groups");
+  revalidatePath("/");
+  redirect("/groups");
+}

@@ -1736,6 +1736,32 @@ begin
 end;
 $$;
 
+-- delete_group — owner-only hard delete. SECURITY DEFINER so the delete runs
+-- with RLS bypassed, but the body first asserts auth.uid() owns the group.
+-- All group-scoped tables (group_members, posts, events, conversations,
+-- group_tags, group_relations) have ON DELETE CASCADE, so deleting the groups
+-- row removes them too. Media rows cascade via posts; the storage objects in
+-- the 'media' bucket are not FK-linked and are left as harmless orphans.
+create or replace function public.delete_group(_group uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+  if not exists (
+    select 1 from groups g where g.id = _group and g.owner_id = auth.uid()
+  ) then
+    raise exception 'only the owner can delete this group' using errcode = '42501';
+  end if;
+  delete from groups where id = _group;
+  return true;
+end;
+$$;
+
 -- RLS: reference tables are public-read, SQL-seeded only (no client writes).
 alter table public.countries        enable row level security;
 alter table public.group_categories enable row level security;

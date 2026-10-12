@@ -17,6 +17,7 @@ import OpenGroupChatButton from "./OpenGroupChatButton";
 import RelatedGroups from "./RelatedGroups";
 import TagEditor from "./TagEditor";
 import MembersPanel from "./MembersPanel";
+import DeleteGroupButton from "./DeleteGroupButton";
 import type { Group, Post, Media, Comment, Profile, ReactionType, Country, GroupCategory, GroupTag } from "@/types/db";
 
 export default async function GroupDetailPage({
@@ -462,6 +463,11 @@ export default async function GroupDetailPage({
           {/* Owner-only: manage member roles (promote/demote moderators). */}
           {isOwner && members.length > 0 && (
             <MembersPanel groupId={group.id} initialMembers={members} />
+          )}
+
+          {/* Owner-only: delete the group (two-step confirm). */}
+          {isOwner && (
+            <DeleteGroupButton groupId={group.id} groupName={group.name} />
           )}
 
           {user && isMember && <OpenGroupChatButton groupId={group.id} />}
