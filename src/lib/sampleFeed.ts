@@ -19,6 +19,7 @@ export interface SamplePost {
   reactions: { like: number; love: number; dislike: number };
   myReaction: "like" | "love" | "dislike" | null;
   bookmarked: boolean;
+  joinedGroup: boolean; // viewer is already a member of this post's group
   imageUrl?: string; // public URL of the post's first image, when present
 }
 
@@ -48,6 +49,7 @@ export const samplePosts: SamplePost[] = [
     reactions: { like: 248, love: 0, dislike: 0 },
     myReaction: null,
     bookmarked: false,
+    joinedGroup: false,
   },
   {
     id: "2",
@@ -64,6 +66,7 @@ export const samplePosts: SamplePost[] = [
     reactions: { like: 97, love: 0, dislike: 0 },
     myReaction: null,
     bookmarked: false,
+    joinedGroup: false,
   },
   {
     id: "3",
@@ -80,6 +83,7 @@ export const samplePosts: SamplePost[] = [
     reactions: { like: 512, love: 0, dislike: 0 },
     myReaction: null,
     bookmarked: false,
+    joinedGroup: false,
   },
 ];
 

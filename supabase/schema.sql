@@ -334,6 +334,27 @@ begin
 end;
 $$;
 
+-- leave_group: a member removes their own membership. The owner may NOT leave
+-- their own group (raise '42501'). No RLS change is needed — gm_delete already
+-- permits `user_id = auth.uid()`; the owner-guard lives here. Idempotent:
+-- deleting zero rows (already not a member) is treated as success.
+create or replace function public.leave_group(_group uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if exists (select 1 from groups g
+             where g.id = _group and g.owner_id = auth.uid()) then
+    raise exception 'owner cannot leave own group' using errcode = '42501';
+  end if;
+  delete from group_members
+  where group_id = _group and user_id = auth.uid();
+  return true;
+end;
+$$;
+
 create or replace function public.set_group_status(_group uuid, _status text)
 returns boolean
 language plpgsql
@@ -2282,3 +2303,25 @@ create policy comments_select on public.comments
 --   select can_moderate_group(:gid); -- true only for owner/moderator
 -- Expected: suspended group/post/comment → true only for owner & moderator;
 -- active → normal visibility rules.
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- Incremental migration: leave_group RPC (engagement → group affinity).
+-- Re-runnable: `create or replace function` is inherently idempotent and no
+-- RLS/table change is required — gm_delete already allows a user to delete
+-- their own membership row, and the owner-guard lives inside this function.
+create or replace function public.leave_group(_group uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if exists (select 1 from groups g
+             where g.id = _group and g.owner_id = auth.uid()) then
+    raise exception 'owner cannot leave own group' using errcode = '42501';
+  end if;
+  delete from group_members
+  where group_id = _group and user_id = auth.uid();
+  return true;
+end;
+$$;

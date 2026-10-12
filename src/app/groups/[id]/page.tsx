@@ -9,6 +9,8 @@ import ReactionBar from "@/components/ReactionBar";
 import BookmarkButton from "@/components/BookmarkButton";
 import ShareButton from "@/components/ShareButton";
 import JoinButton from "@/components/JoinButton";
+import RocketJoinButton from "@/components/RocketJoinButton";
+import LeaveGroupButton from "@/components/LeaveGroupButton";
 import PostBody from "@/components/PostBody";
 import MyEventsPanel from "@/components/MyEventsPanel";
 import PostCard from "@/components/dashboard/PostCard";
@@ -22,6 +24,7 @@ import PostModerationMenu from "./PostModerationMenu";
 import CommentModerationControls from "./CommentModerationControls";
 import { canModerate as canModerateRole, canDeleteItem } from "@/lib/moderation";
 import type { GroupRole } from "@/lib/moderation";
+import { canLeaveGroup } from "@/lib/affinity";
 import type { Group, Post, Media, Comment, Profile, ReactionType, Country, GroupCategory, GroupTag } from "@/types/db";
 
 export default async function GroupDetailPage({
@@ -353,7 +356,12 @@ export default async function GroupDetailPage({
         {/* Join / Post controls */}
         {user ? (
           isMember ? (
-            <MediaUploadForm groupId={group.id} />
+            <div className="space-y-3">
+              <MediaUploadForm groupId={group.id} />
+              {canLeaveGroup(viewerRole) && (
+                <LeaveGroupButton groupId={group.id} />
+              )}
+            </div>
           ) : !group.is_private ? (
             <JoinButton groupId={group.id} />
           ) : (
@@ -428,6 +436,10 @@ export default async function GroupDetailPage({
                         disabled={false}
                       />
                       <ShareButton groupId={group.id} disabled={false} />
+                      <RocketJoinButton
+                        groupId={group.id}
+                        initialJoined={isMember}
+                      />
                       {(canDeletePost || canModerate) && (
                         <PostModerationMenu
                           postId={post.id}

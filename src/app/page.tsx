@@ -13,6 +13,7 @@ import {
   type SamplePost,
 } from "@/lib/sampleFeed";
 import { fetchFeedPosts, rankByEngagement } from "@/lib/feed";
+import { distinctInterestedGroups } from "@/lib/affinity";
 import type { Profile } from "@/types/db";
 
 interface GroupSummary {
@@ -50,6 +51,7 @@ export default async function HomePage() {
   let handle = "guest";
   let createdGroups: GroupSummary[] = [];
   let memberGroups: GroupSummary[] = [];
+  let interestedGroups: GroupSummary[] = [];
   let newGroups: NewGroupItem[] = [];
   let friendsGroups: NewGroupItem[] = [];
 
@@ -91,6 +93,42 @@ export default async function HomePage() {
       memberGroups = (memberships ?? [])
         .map((m) => m.groups)
         .filter((g): g is GroupSummary => g !== null);
+
+      // Interested Groups: any group where the viewer has a like OR love
+      // reaction on at least one of that group's posts (dislike doesn't count).
+      // Derived — joins reactions → posts → groups and dedupes. RLS already
+      // limits `groups` to those the viewer can read.
+      const { data: myReactions } = await supabase
+        .from("reactions")
+        .select("post_id, type")
+        .eq("user_id", user.id)
+        .in("type", ["like", "love"])
+        .returns<{ post_id: string; type: string }[]>();
+      const reactedPostIds = Array.from(
+        new Set((myReactions ?? []).map((r) => r.post_id))
+      );
+      if (reactedPostIds.length > 0) {
+        const { data: reactedPosts } = await supabase
+          .from("posts")
+          .select("group_id")
+          .in("id", reactedPostIds)
+          .returns<{ group_id: string | null }[]>();
+        const interestedGroupIds = Array.from(
+          new Set(
+            (reactedPosts ?? [])
+              .map((p) => p.group_id)
+              .filter((g): g is string => !!g)
+          )
+        );
+        if (interestedGroupIds.length > 0) {
+          const { data: interestedRows } = await supabase
+            .from("groups")
+            .select("id, name")
+            .in("id", interestedGroupIds)
+            .returns<GroupSummary[]>();
+          interestedGroups = distinctInterestedGroups(interestedRows ?? []);
+        }
+      }
 
       // Recent public groups (visible to everyone) — "New Groups".
       const { data: recent } = await supabase
@@ -249,6 +287,7 @@ export default async function HomePage() {
             trending={sampleTrending}
             suggestions={sampleSuggestions}
             createdGroups={createdGroups}
+            interestedGroups={interestedGroups}
             memberGroups={memberGroups}
           />
         </div>

@@ -43,8 +43,11 @@ async function enrichPosts(
 
   const postIds = posts.map((p) => p.id);
   const authorIds = Array.from(new Set(posts.map((p) => p.author_id)));
+  const groupIds = Array.from(
+    new Set(posts.map((p) => p.group_id).filter((g): g is string => !!g))
+  );
 
-  const [reactionsRes, commentsRes, authorsRes, bmRes, mediaRes] =
+  const [reactionsRes, commentsRes, authorsRes, bmRes, mediaRes, membershipsRes] =
     await Promise.all([
       supabase
         .from("reactions")
@@ -77,6 +80,14 @@ async function enrichPosts(
         .returns<
           { post_id: string; storage_path: string; created_at: string }[]
         >(),
+      user && groupIds.length
+        ? supabase
+            .from("group_members")
+            .select("group_id")
+            .eq("user_id", user.id)
+            .in("group_id", groupIds)
+            .returns<{ group_id: string }[]>()
+        : Promise.resolve({ data: [] as { group_id: string }[] }),
     ]);
 
   const reactionCounts = new Map<
@@ -100,6 +111,10 @@ async function enrichPosts(
   for (const a of authorsRes.data ?? []) authorName.set(a.id, a.display_name);
 
   const bookmarkedSet = new Set((bmRes.data ?? []).map((b) => b.post_id));
+
+  const joinedGroupSet = new Set(
+    (membershipsRes.data ?? []).map((m) => m.group_id)
+  );
 
   // First (earliest) media path per post — the media select is already
   // ordered ascending, so the first row we see for a post_id is the earliest.
@@ -127,6 +142,7 @@ async function enrichPosts(
       reactions,
       myReaction: myReaction.get(p.id) ?? null,
       bookmarked: user ? bookmarkedSet.has(p.id) : false,
+      joinedGroup: user && p.group_id ? joinedGroupSet.has(p.group_id) : false,
       imageUrl: path
         ? supabase.storage.from("media").getPublicUrl(path).data.publicUrl
         : undefined,

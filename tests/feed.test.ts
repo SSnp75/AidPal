@@ -22,6 +22,7 @@ function makePost(
     reactions,
     myReaction: null,
     bookmarked: false,
+    joinedGroup: false,
   };
 }
 

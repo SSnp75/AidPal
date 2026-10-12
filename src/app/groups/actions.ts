@@ -190,6 +190,50 @@ export async function joinGroup({
   return { ok: true };
 }
 
+/* ── leaveGroup ── */
+
+/**
+ * Remove the caller's own membership from a group. Routes through the
+ * SECURITY DEFINER `leave_group` RPC so the owner-guard is enforced
+ * server-side: the group owner cannot leave their own group ('42501').
+ * Idempotent — leaving when not a member is a no-op success.
+ */
+export async function leaveGroup({
+  groupId,
+}: {
+  groupId: string;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(groupId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false, error: "Sign in to leave groups." };
+  }
+
+  const { error } = await supabase.rpc("leave_group", { _group: groupId });
+  if (error) {
+    console.error("[leaveGroup]", error.message);
+    if (error.code === "42501") {
+      return { ok: false, error: "The owner can't leave their own group." };
+    }
+    return { ok: false, error: "Could not leave group. Try again." };
+  }
+
+  // No "left_group" activity verb exists in the activities CHECK, so skip
+  // activity logging here to avoid a CHECK violation.
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath("/");
+  return { ok: true };
+}
+
 /* ── createPost ── */
 
 export async function createPost(

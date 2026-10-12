@@ -46,11 +46,13 @@ export default function RightSidebar({
   trending,
   suggestions,
   createdGroups,
+  interestedGroups,
   memberGroups,
 }: {
   trending: TrendingItem[];
   suggestions: SuggestedPerson[];
   createdGroups: GroupSummary[];
+  interestedGroups: GroupSummary[];
   memberGroups: GroupSummary[];
 }) {
   return (
@@ -66,7 +68,7 @@ export default function RightSidebar({
       />
       <GroupList
         title="Interested Groups"
-        groups={[]}
+        groups={interestedGroups}
         emptyText="No interested groups yet."
       />
       <GroupList

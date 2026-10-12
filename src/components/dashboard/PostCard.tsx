@@ -4,6 +4,7 @@ import PostBody from "@/components/PostBody";
 import ReactionBar from "@/components/ReactionBar";
 import BookmarkButton from "@/components/BookmarkButton";
 import ShareButton from "@/components/ShareButton";
+import RocketJoinButton from "@/components/RocketJoinButton";
 import type { SamplePost } from "@/lib/sampleFeed";
 
 const engagementBtn =
@@ -100,6 +101,12 @@ export default function PostCard({ post }: { post: SamplePost }) {
           disabled={!post.isReal}
         />
         <ShareButton groupId={post.groupId} disabled={!post.isReal} />
+        {post.isReal && post.groupId && (
+          <RocketJoinButton
+            groupId={post.groupId}
+            initialJoined={post.joinedGroup}
+          />
+        )}
       </div>
     </article>
   );
