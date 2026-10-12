@@ -294,24 +294,36 @@ export function normalizeTags(raw: unknown): string[] {
 }
 
 /**
- * Extract auto-tags from a post body: the first word after each `@ # $ % &`
- * sigil becomes a tag. The sigil may be followed by optional spaces, then the
- * first word — a run of letters/digits/_/- that stops at the next whitespace or
- * punctuation. So "#Nepal, flood", "# Nepal", and "#Nepal" all yield "nepal"
- * (not "flood"). Each match is normalized (lowercased, trimmed) and the list is
+/**
+ * Extract auto-tags from a post body. A sigil (`@ # $ % &`) opens a tagging
+ * region: every word from a sigil up to the next sigil (or end of body) becomes
+ * a tag. Text before the first sigil is ignored. Each word is split on
+ * whitespace and punctuation and normalized (lowercased, trimmed); the list is
  * deduped with order preserved.
+ *
+ * Examples:
+ *   "#Nepal, flood"                 → ["nepal", "flood"]
+ *   "#Nepal flood @relief now"      → ["nepal", "flood", "relief", "now"]
+ *   "think about #resettlement for" → ["resettlement", "for"]
  */
 export function extractTagsFromBody(body: string): string[] {
   if (typeof body !== "string" || body.length === 0) return [];
-  // Sigil, optional spaces, then the first word: Unicode letters/digits + _ and -.
-  const re = /[@#$%&][ \t]*([\p{L}\p{N}_-]+)/gu;
+
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const m of body.matchAll(re)) {
-    const t = normalizeTag(m[1]);
-    if (t && !seen.has(t)) {
-      seen.add(t);
-      out.push(t);
+  // Each region starts at a sigil and runs until the next sigil or end.
+  // [1] is the region text (everything after the opening sigil, before the next).
+  const regionRe = /[@#$%&]([^@#$%&]*)/gu;
+  // Words inside a region: runs of letters/digits/_/-; punctuation/space splits.
+  const wordRe = /[\p{L}\p{N}_-]+/gu;
+
+  for (const region of body.matchAll(regionRe)) {
+    for (const w of region[1].matchAll(wordRe)) {
+      const t = normalizeTag(w[0]);
+      if (t && !seen.has(t)) {
+        seen.add(t);
+        out.push(t);
+      }
     }
   }
   return out;

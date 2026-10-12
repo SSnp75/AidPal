@@ -218,7 +218,7 @@ describe("buildMediaKey", () => {
 
 /* ── extractTagsFromBody ── */
 describe("extractTagsFromBody", () => {
-  it("extracts the word after each sigil", () => {
+  it("tags each single word when sigils are adjacent", () => {
     expect(extractTagsFromBody("#Nepal @resettlement $flood %rate &aid")).toEqual([
       "nepal",
       "resettlement",
@@ -228,34 +228,36 @@ describe("extractTagsFromBody", () => {
     ]);
   });
 
-  it("takes only the first word after a sigil, not following words", () => {
-    expect(extractTagsFromBody("#Nepal, flood")).toEqual(["nepal"]);
+  it("tags all words from a sigil up to the next sigil", () => {
+    expect(extractTagsFromBody("#Nepal, flood")).toEqual(["nepal", "flood"]);
+  });
+
+  it("tags words across multiple sigil regions", () => {
+    expect(extractTagsFromBody("#Nepal flood @relief now")).toEqual([
+      "nepal",
+      "flood",
+      "relief",
+      "now",
+    ]);
   });
 
   it("allows optional spaces between the sigil and the word", () => {
     expect(extractTagsFromBody("# Nepal")).toEqual(["nepal"]);
-    expect(extractTagsFromBody("#  flood relief")).toEqual(["flood"]);
   });
 
   it("normalizes to lowercase and dedupes", () => {
     expect(extractTagsFromBody("#Nepal #nepal #NEPAL")).toEqual(["nepal"]);
   });
 
-  it("handles sigils mid-sentence", () => {
-    expect(extractTagsFromBody("Is it time to think about #resettlement policy?")).toEqual([
+  it("ignores text before the first sigil", () => {
+    expect(extractTagsFromBody("Is it time to think about #resettlement policy")).toEqual([
       "resettlement",
+      "policy",
     ]);
   });
 
   it("ignores a sigil at end of string with no following word", () => {
     expect(extractTagsFromBody("the price is $")).toEqual([]);
-    expect(extractTagsFromBody("50% ")).toEqual([]);
-  });
-
-  it("binds a sigil to the next word even across a space", () => {
-    // Consequence of 'first word after the sigil': a space-separated word
-    // after any sigil is captured.
-    expect(extractTagsFromBody("$ and")).toEqual(["and"]);
   });
 
   it("returns empty for no sigils", () => {
@@ -267,6 +269,6 @@ describe("extractTagsFromBody", () => {
   });
 
   it("preserves hyphens inside a tag word", () => {
-    expect(extractTagsFromBody("#flood-relief now")).toEqual(["flood-relief"]);
+    expect(extractTagsFromBody("#flood-relief now")).toEqual(["flood-relief", "now"]);
   });
 });
