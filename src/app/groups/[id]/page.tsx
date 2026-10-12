@@ -346,11 +346,25 @@ export default async function GroupDetailPage({
                   [group.city, groupCountry.name].filter(Boolean).join(", ");
                 const q = encodeURIComponent(place);
                 return (
-                  <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
                     <span>
                       {groupCountry.name}
                       {group.city ? ` · ${group.city}` : ""}
                     </span>
+                    {/* When a precise location is set, show it as the clickable
+                        label so the exact entry is visible, not hidden behind a
+                        generic chip. */}
+                    {group.location_query && (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${q}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`View ${place} on Google Maps`}
+                        className="text-accent underline underline-offset-2 hover:text-accent-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      >
+                        📍 {group.location_query}
+                      </a>
+                    )}
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${q}`}
                       target="_blank"
