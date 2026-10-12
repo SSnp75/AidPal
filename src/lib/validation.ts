@@ -1,6 +1,6 @@
 /** Pure validation helpers — no network, no side effects. */
 
-import type { ReactionType, EventScope, TaskStatus } from "@/types/db";
+import type { ReactionType, EventScope, TaskStatus, ModerationStatus } from "@/types/db";
 
 export type ValidationResult =
   | { ok: true }
@@ -150,6 +150,17 @@ export const REACTION_TYPES: readonly ReactionType[] = ["like", "love", "dislike
 
 export function isReactionType(raw: unknown): raw is ReactionType {
   return typeof raw === "string" && (REACTION_TYPES as readonly string[]).includes(raw);
+}
+
+/**
+ * Allowed moderation statuses. Typed as `readonly ModerationStatus[]` so the
+ * literal list is compiler-checked against the canonical union in `@/types/db`
+ * (mirrors REACTION_TYPES / isReactionType).
+ */
+export const MODERATION_STATUSES: readonly ModerationStatus[] = ["active", "suspended"];
+
+export function isModerationStatus(raw: unknown): raw is ModerationStatus {
+  return typeof raw === "string" && (MODERATION_STATUSES as readonly string[]).includes(raw);
 }
 
 export function validateEventTitle(raw: unknown): ValidationResult {

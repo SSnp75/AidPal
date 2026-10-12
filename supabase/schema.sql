@@ -23,13 +23,14 @@ create table if not exists public.groups (
   description text check (description is null or char_length(description) <= 1000),
   is_private  boolean not null default false,
   owner_id    uuid not null references public.profiles(id) on delete cascade,
+  status      text not null default 'active' check (status in ('active','suspended')),
   created_at  timestamptz not null default now()
 );
 
 create table if not exists public.group_members (
   group_id   uuid not null references public.groups(id) on delete cascade,
   user_id    uuid not null references public.profiles(id) on delete cascade,
-  role       text not null default 'member' check (role in ('owner','member')),
+  role       text not null default 'member' check (role in ('owner','moderator','member')),
   created_at timestamptz not null default now(),
   primary key (group_id, user_id)
 );
@@ -39,6 +40,7 @@ create table if not exists public.posts (
   group_id   uuid not null references public.groups(id) on delete cascade,
   author_id  uuid not null references public.profiles(id) on delete cascade,
   body       text check (body is null or char_length(body) <= 2000),
+  status     text not null default 'active' check (status in ('active','suspended')),
   created_at timestamptz not null default now()
 );
 
@@ -56,6 +58,7 @@ create table if not exists public.comments (
   post_id    uuid not null references public.posts(id) on delete cascade,
   author_id  uuid not null references public.profiles(id) on delete cascade,
   body       text not null check (char_length(body) between 1 and 1000),
+  status     text not null default 'active' check (status in ('active','suspended')),
   created_at timestamptz not null default now()
 );
 
@@ -232,6 +235,31 @@ as $$
   );
 $$;
 
+-- can_moderate_group: owner of the group OR a 'moderator' member. Single
+-- source of truth for the "owner OR moderator" predicate used by the suspend
+-- RPCs and the status-aware visibility helpers below. SECURITY DEFINER so its
+-- base-table reads bypass RLS and never re-enter a policy (keeps the graph
+-- acyclic). The owner branch is checked independently so the owner is covered
+-- even if their group_members row were ever missing.
+create or replace function public.can_moderate_group(_group uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from groups g
+    where g.id = _group and g.owner_id = auth.uid()
+  )
+  or exists (
+    select 1 from group_members gm
+    where gm.group_id = _group
+      and gm.user_id = auth.uid()
+      and gm.role = 'moderator'
+  );
+$$;
+
 create or replace function public.can_read_group(gid uuid)
 returns boolean
 language sql
@@ -243,6 +271,7 @@ as $$
     select 1 from groups g
     where g.id = gid
       and (g.is_private = false or public.is_group_member(g.id))
+      and (g.status = 'active' or public.can_moderate_group(g.id))
   );
 $$;
 
@@ -255,8 +284,177 @@ stable
 as $$
   select exists (
     select 1 from posts p
-    where p.id = pid and public.can_read_group(p.group_id)
+    where p.id = pid
+      and public.can_read_group(p.group_id)
+      and (p.status = 'active' or public.can_moderate_group(p.group_id))
   );
+$$;
+
+-- can_read_comment: comment visibility that folds in post/group suspension
+-- (via can_read_post) and adds comment-level suspension. SECURITY DEFINER →
+-- its read of comments/posts bypasses RLS, so comments_select (which points
+-- here) never re-enters itself. The DAG is comment → post → group → membership.
+create or replace function public.can_read_comment(cid uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from comments c
+    join posts p on p.id = c.post_id
+    where c.id = cid
+      and public.can_read_post(c.post_id)
+      and (c.status = 'active' or public.can_moderate_group(p.group_id))
+  );
+$$;
+
+-- ── Moderation RPCs (SECURITY DEFINER, underscore params) ──
+-- All return true after a passing authorization check (success == authorized
+-- and the statement ran, NOT == a row changed — these are idempotent). They
+-- raise '42501' when unauthorized, '22023' on a bad status, 'P0002' when the
+-- target does not exist. DELETE group is owner-only; status setters are
+-- owner/moderator (can_moderate_group); DELETE post/comment is author-or-owner
+-- (can_moderate_group is deliberately NOT used there — moderators cannot delete).
+
+create or replace function public.delete_group(_group uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from groups g
+                 where g.id = _group and g.owner_id = auth.uid()) then
+    raise exception 'not group owner' using errcode = '42501';
+  end if;
+  delete from groups where id = _group;
+  return true;
+end;
+$$;
+
+create or replace function public.set_group_status(_group uuid, _status text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if _status not in ('active','suspended') then
+    raise exception 'invalid status' using errcode = '22023';
+  end if;
+  if not public.can_moderate_group(_group) then
+    raise exception 'not a group moderator' using errcode = '42501';
+  end if;
+  update groups set status = _status where id = _group;
+  return true;
+end;
+$$;
+
+create or replace function public.delete_post(_post uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_author uuid;
+  v_group  uuid;
+begin
+  select p.author_id, p.group_id into v_author, v_group
+  from posts p where p.id = _post;
+  if v_group is null then
+    raise exception 'post not found' using errcode = 'P0002';
+  end if;
+  if not (
+       v_author = auth.uid()
+    or exists (select 1 from groups g
+               where g.id = v_group and g.owner_id = auth.uid())
+  ) then
+    raise exception 'not allowed to delete post' using errcode = '42501';
+  end if;
+  delete from posts where id = _post;
+  return true;
+end;
+$$;
+
+create or replace function public.set_post_status(_post uuid, _status text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group uuid;
+begin
+  if _status not in ('active','suspended') then
+    raise exception 'invalid status' using errcode = '22023';
+  end if;
+  select p.group_id into v_group from posts p where p.id = _post;
+  if v_group is null then
+    raise exception 'post not found' using errcode = 'P0002';
+  end if;
+  if not public.can_moderate_group(v_group) then
+    raise exception 'not a group moderator' using errcode = '42501';
+  end if;
+  update posts set status = _status where id = _post;
+  return true;
+end;
+$$;
+
+create or replace function public.delete_comment(_comment uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_author uuid;
+  v_group  uuid;
+begin
+  select c.author_id, p.group_id into v_author, v_group
+  from comments c join posts p on p.id = c.post_id
+  where c.id = _comment;
+  if v_group is null then
+    raise exception 'comment not found' using errcode = 'P0002';
+  end if;
+  if not (
+       v_author = auth.uid()
+    or exists (select 1 from groups g
+               where g.id = v_group and g.owner_id = auth.uid())
+  ) then
+    raise exception 'not allowed to delete comment' using errcode = '42501';
+  end if;
+  delete from comments where id = _comment;
+  return true;
+end;
+$$;
+
+create or replace function public.set_comment_status(_comment uuid, _status text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group uuid;
+begin
+  if _status not in ('active','suspended') then
+    raise exception 'invalid status' using errcode = '22023';
+  end if;
+  select p.group_id into v_group
+  from comments c join posts p on p.id = c.post_id
+  where c.id = _comment;
+  if v_group is null then
+    raise exception 'comment not found' using errcode = 'P0002';
+  end if;
+  if not public.can_moderate_group(v_group) then
+    raise exception 'not a group moderator' using errcode = '42501';
+  end if;
+  update comments set status = _status where id = _comment;
+  return true;
+end;
 $$;
 
 create or replace function public.can_write_post_media(pid uuid)
@@ -671,7 +869,9 @@ drop policy if exists posts_update on public.posts;
 drop policy if exists posts_delete on public.posts;
 
 create policy posts_select on public.posts
-  for select to anon, authenticated using (public.can_read_group(group_id));
+  for select to anon, authenticated
+  using (public.can_read_group(group_id)
+         and (status = 'active' or public.can_moderate_group(group_id)));
 
 create policy posts_insert on public.posts
   for insert to authenticated
@@ -705,7 +905,7 @@ drop policy if exists comments_update on public.comments;
 drop policy if exists comments_delete on public.comments;
 
 create policy comments_select on public.comments
-  for select to anon, authenticated using (public.can_read_post(post_id));
+  for select to anon, authenticated using (public.can_read_comment(id));
 
 create policy comments_insert on public.comments
   for insert to authenticated
@@ -1736,32 +1936,6 @@ begin
 end;
 $$;
 
--- delete_group — owner-only hard delete. SECURITY DEFINER so the delete runs
--- with RLS bypassed, but the body first asserts auth.uid() owns the group.
--- All group-scoped tables (group_members, posts, events, conversations,
--- group_tags, group_relations) have ON DELETE CASCADE, so deleting the groups
--- row removes them too. Media rows cascade via posts; the storage objects in
--- the 'media' bucket are not FK-linked and are left as harmless orphans.
-create or replace function public.delete_group(_group uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if auth.uid() is null then
-    raise exception 'not authenticated' using errcode = '42501';
-  end if;
-  if not exists (
-    select 1 from groups g where g.id = _group and g.owner_id = auth.uid()
-  ) then
-    raise exception 'only the owner can delete this group' using errcode = '42501';
-  end if;
-  delete from groups where id = _group;
-  return true;
-end;
-$$;
-
 -- RLS: reference tables are public-read, SQL-seeded only (no client writes).
 alter table public.countries        enable row level security;
 alter table public.group_categories enable row level security;
@@ -1944,3 +2118,167 @@ begin
   return true;
 end;
 $$;
+
+-- ============================================================
+-- MIGRATION: group & content moderation (status + RPCs + RLS)
+-- Idempotent / re-runnable. Run ONCE in the Supabase SQL editor.
+-- References only pre-existing objects plus what it creates.
+-- Run order matters: columns → role-CHECK prerequisite → can_moderate_group
+-- → visibility helpers → RPCs → policy repoints.
+-- ============================================================
+
+-- 1. status columns (default 'active' → existing rows become active).
+alter table public.groups   add column if not exists status text not null default 'active'
+  check (status in ('active','suspended'));
+alter table public.posts    add column if not exists status text not null default 'active'
+  check (status in ('active','suspended'));
+alter table public.comments add column if not exists status text not null default 'active'
+  check (status in ('active','suspended'));
+
+-- 1a. Prerequisite: ensure 'moderator' is a legal group_members.role.
+--     Idempotent; makes the feature correct whether or not the earlier
+--     "MODERATOR ROLE" migration already ran. Without this, a from-canonical
+--     build (role CHECK = ('owner','member')) silently degrades moderation to
+--     owner-only because no moderator can ever be assigned.
+alter table public.group_members drop constraint if exists group_members_role_check;
+alter table public.group_members add constraint group_members_role_check
+  check (role in ('owner','moderator','member'));
+
+-- 2. moderation helper (owner OR moderator). Depends on step 1a.
+create or replace function public.can_moderate_group(_group uuid)
+returns boolean language sql security definer set search_path = public stable as $$
+  select exists (select 1 from groups g
+                 where g.id = _group and g.owner_id = auth.uid())
+      or exists (select 1 from group_members gm
+                 where gm.group_id = _group and gm.user_id = auth.uid()
+                   and gm.role = 'moderator');
+$$;
+
+-- 3. visibility helpers (status-aware; SECURITY DEFINER → acyclic).
+create or replace function public.can_read_group(gid uuid)
+returns boolean language sql security definer set search_path = public stable as $$
+  select exists (select 1 from groups g
+    where g.id = gid
+      and (g.is_private = false or public.is_group_member(g.id))
+      and (g.status = 'active' or public.can_moderate_group(g.id)));
+$$;
+
+create or replace function public.can_read_post(pid uuid)
+returns boolean language sql security definer set search_path = public stable as $$
+  select exists (select 1 from posts p
+    where p.id = pid
+      and public.can_read_group(p.group_id)
+      and (p.status = 'active' or public.can_moderate_group(p.group_id)));
+$$;
+
+create or replace function public.can_read_comment(cid uuid)
+returns boolean language sql security definer set search_path = public stable as $$
+  select exists (select 1 from comments c
+    join posts p on p.id = c.post_id
+    where c.id = cid
+      and public.can_read_post(c.post_id)
+      and (c.status = 'active' or public.can_moderate_group(p.group_id)));
+$$;
+
+-- 4. privileged RPCs.
+create or replace function public.delete_group(_group uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  if not exists (select 1 from groups g where g.id = _group and g.owner_id = auth.uid()) then
+    raise exception 'not group owner' using errcode = '42501';
+  end if;
+  delete from groups where id = _group;
+  return true;
+end; $$;
+
+create or replace function public.set_group_status(_group uuid, _status text)
+returns boolean language plpgsql security definer set search_path = public as $$
+begin
+  if _status not in ('active','suspended') then
+    raise exception 'invalid status' using errcode = '22023'; end if;
+  if not public.can_moderate_group(_group) then
+    raise exception 'not a group moderator' using errcode = '42501'; end if;
+  update groups set status = _status where id = _group;
+  return true;
+end; $$;
+
+create or replace function public.delete_post(_post uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare v_author uuid; v_group uuid;
+begin
+  select p.author_id, p.group_id into v_author, v_group from posts p where p.id = _post;
+  if v_group is null then raise exception 'post not found' using errcode = 'P0002'; end if;
+  if not (v_author = auth.uid()
+          or exists (select 1 from groups g where g.id = v_group and g.owner_id = auth.uid())) then
+    raise exception 'not allowed to delete post' using errcode = '42501'; end if;
+  delete from posts where id = _post;
+  return true;
+end; $$;
+
+create or replace function public.set_post_status(_post uuid, _status text)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare v_group uuid;
+begin
+  if _status not in ('active','suspended') then
+    raise exception 'invalid status' using errcode = '22023'; end if;
+  select p.group_id into v_group from posts p where p.id = _post;
+  if v_group is null then raise exception 'post not found' using errcode = 'P0002'; end if;
+  if not public.can_moderate_group(v_group) then
+    raise exception 'not a group moderator' using errcode = '42501'; end if;
+  update posts set status = _status where id = _post;
+  return true;
+end; $$;
+
+create or replace function public.delete_comment(_comment uuid)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare v_author uuid; v_group uuid;
+begin
+  select c.author_id, p.group_id into v_author, v_group
+  from comments c join posts p on p.id = c.post_id where c.id = _comment;
+  if v_group is null then raise exception 'comment not found' using errcode = 'P0002'; end if;
+  if not (v_author = auth.uid()
+          or exists (select 1 from groups g where g.id = v_group and g.owner_id = auth.uid())) then
+    raise exception 'not allowed to delete comment' using errcode = '42501'; end if;
+  delete from comments where id = _comment;
+  return true;
+end; $$;
+
+create or replace function public.set_comment_status(_comment uuid, _status text)
+returns boolean language plpgsql security definer set search_path = public as $$
+declare v_group uuid;
+begin
+  if _status not in ('active','suspended') then
+    raise exception 'invalid status' using errcode = '22023'; end if;
+  select p.group_id into v_group from comments c join posts p on p.id = c.post_id
+  where c.id = _comment;
+  if v_group is null then raise exception 'comment not found' using errcode = 'P0002'; end if;
+  if not public.can_moderate_group(v_group) then
+    raise exception 'not a group moderator' using errcode = '42501'; end if;
+  update comments set status = _status where id = _comment;
+  return true;
+end; $$;
+
+-- 5. policy repoints (posts gains inline status conjunct; comments → can_read_comment).
+drop policy if exists posts_select on public.posts;
+create policy posts_select on public.posts
+  for select to anon, authenticated
+  using (public.can_read_group(group_id)
+         and (status = 'active' or public.can_moderate_group(group_id)));
+
+drop policy if exists comments_select on public.comments;
+create policy comments_select on public.comments
+  for select to anon, authenticated using (public.can_read_comment(id));
+
+-- (groups_select needs no re-create: its policy text is unchanged — only
+--  can_read_group's body changed, which create or replace function updates.
+--  Same for media/reactions/bookmarks, which route through can_read_post.)
+
+-- 5.1 Manual verification (run once, four personas: owner, moderator, member,
+--      outsider). Confirm no call raises "infinite recursion detected in
+--      policy" and the read matrix holds for active vs. suspended rows.
+--   select can_read_group(:gid);     -- as each persona
+--   select can_read_post(:pid);      -- as each persona
+--   select can_read_comment(:cid);   -- as each persona
+--   select can_moderate_group(:gid); -- true only for owner/moderator
+-- Expected: suspended group/post/comment → true only for owner & moderator;
+-- active → normal visibility rules.

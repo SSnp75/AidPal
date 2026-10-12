@@ -11,6 +11,9 @@ export interface Profile {
 
 export type GroupScope = "local" | "national" | "global" | "group";
 
+/** Moderation status shared by groups, posts, and comments. */
+export type ModerationStatus = "active" | "suspended";
+
 export interface Group {
   id: string;
   name: string;
@@ -23,6 +26,7 @@ export interface Group {
   category_slug: string | null;
   scope: GroupScope;
   relations_open: boolean;
+  status: ModerationStatus;
 }
 
 export interface Country {
@@ -51,7 +55,7 @@ export interface GroupRelation {
 export interface GroupMember {
   group_id: string;
   user_id: string;
-  role: "owner" | "member";
+  role: "owner" | "moderator" | "member";
   created_at: string;
 }
 
@@ -61,6 +65,7 @@ export interface Post {
   author_id: string;
   body: string | null;
   created_at: string;
+  status: ModerationStatus;
 }
 
 export interface Media {
@@ -78,6 +83,7 @@ export interface Comment {
   author_id: string;
   body: string;
   created_at: string;
+  status: ModerationStatus;
 }
 
 export type ReactionType = "like" | "love" | "dislike";

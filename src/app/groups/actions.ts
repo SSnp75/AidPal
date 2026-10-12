@@ -22,10 +22,10 @@ import {
   extractTagsFromBody,
   MAX_TAGS,
 } from "@/lib/validation";
-import { isReactionType } from "@/lib/validation";
+import { isReactionType, isModerationStatus } from "@/lib/validation";
 import { buildMediaKey } from "@/lib/storage-path";
 import type { ActionResult } from "@/app/auth/actions";
-import type { ReactionType, ActivityVerb } from "@/types/db";
+import type { ReactionType, ActivityVerb, ModerationStatus } from "@/types/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /* ── logActivity (best-effort private activity log) ── */
@@ -924,7 +924,14 @@ export async function setGroupMemberRole({
   return { ok: true };
 }
 
-/* ── deleteGroup (owner-only hard delete) ── */
+/* ── Moderation: delete / suspend groups, posts, comments ──
+ *
+ * All six wrap SECURITY DEFINER RPCs that enforce the authorization matrix
+ * server-side (delete-group owner-only; status setters owner/moderator;
+ * delete post/comment author-or-owner). Each maps the Postgres error code via
+ * the single ladder: 42501 → action-specific permission message; 22023 →
+ * "Invalid status."; P0002 → "Not found or not allowed."; else generic.
+ */
 
 export async function deleteGroup({
   groupId,
@@ -942,17 +949,213 @@ export async function deleteGroup({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Sign in to delete a group." };
+  if (!user) return { ok: false, error: "Sign in to manage groups." };
 
-  const { data, error } = await supabase.rpc("delete_group", {
-    _group: groupId,
-  });
-  if (error || data !== true) {
-    console.error("[deleteGroup]", error?.message ?? "no change");
-    return { ok: false, error: "Only the group owner can delete this group." };
+  const { error } = await supabase.rpc("delete_group", { _group: groupId });
+  if (error) {
+    console.error("[deleteGroup]", error.message);
+    if (error.code === "42501")
+      return { ok: false, error: "Only the group owner can delete this group." };
+    if (error.code === "22023") return { ok: false, error: "Invalid status." };
+    if (error.code === "P0002") return { ok: false, error: "Not found or not allowed." };
+    return { ok: false, error: "Something went wrong. Try again." };
   }
 
   revalidatePath("/groups");
   revalidatePath("/");
   redirect("/groups");
+}
+
+export async function setGroupStatus({
+  groupId,
+  status,
+}: {
+  groupId: string;
+  status: ModerationStatus;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(groupId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+  if (!isModerationStatus(status)) {
+    return { ok: false, error: "Invalid status." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to manage groups." };
+
+  const { error } = await supabase.rpc("set_group_status", {
+    _group: groupId,
+    _status: status,
+  });
+  if (error) {
+    console.error("[setGroupStatus]", error.message);
+    if (error.code === "42501")
+      return { ok: false, error: "Only owners or moderators can suspend this group." };
+    if (error.code === "22023") return { ok: false, error: "Invalid status." };
+    if (error.code === "P0002") return { ok: false, error: "Not found or not allowed." };
+    return { ok: false, error: "Something went wrong. Try again." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath("/");
+  return { ok: true };
+}
+
+export async function deletePost({
+  postId,
+  groupId,
+}: {
+  postId: string;
+  groupId: string;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(postId) || !isUUID(groupId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to manage posts." };
+
+  const { error } = await supabase.rpc("delete_post", { _post: postId });
+  if (error) {
+    console.error("[deletePost]", error.message);
+    if (error.code === "42501")
+      return { ok: false, error: "You can only delete your own posts (owners can delete any)." };
+    if (error.code === "22023") return { ok: false, error: "Invalid status." };
+    if (error.code === "P0002") return { ok: false, error: "Not found or not allowed." };
+    return { ok: false, error: "Something went wrong. Try again." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath("/");
+  return { ok: true };
+}
+
+export async function setPostStatus({
+  postId,
+  groupId,
+  status,
+}: {
+  postId: string;
+  groupId: string;
+  status: ModerationStatus;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(postId) || !isUUID(groupId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+  if (!isModerationStatus(status)) {
+    return { ok: false, error: "Invalid status." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to manage posts." };
+
+  const { error } = await supabase.rpc("set_post_status", {
+    _post: postId,
+    _status: status,
+  });
+  if (error) {
+    console.error("[setPostStatus]", error.message);
+    if (error.code === "42501")
+      return { ok: false, error: "Only owners or moderators can suspend posts." };
+    if (error.code === "22023") return { ok: false, error: "Invalid status." };
+    if (error.code === "P0002") return { ok: false, error: "Not found or not allowed." };
+    return { ok: false, error: "Something went wrong. Try again." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  return { ok: true };
+}
+
+export async function deleteComment({
+  commentId,
+  groupId,
+}: {
+  commentId: string;
+  groupId: string;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(commentId) || !isUUID(groupId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to manage comments." };
+
+  const { error } = await supabase.rpc("delete_comment", { _comment: commentId });
+  if (error) {
+    console.error("[deleteComment]", error.message);
+    if (error.code === "42501")
+      return { ok: false, error: "You can only delete your own comments (owners can delete any)." };
+    if (error.code === "22023") return { ok: false, error: "Invalid status." };
+    if (error.code === "P0002") return { ok: false, error: "Not found or not allowed." };
+    return { ok: false, error: "Something went wrong. Try again." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  return { ok: true };
+}
+
+export async function setCommentStatus({
+  commentId,
+  groupId,
+  status,
+}: {
+  commentId: string;
+  groupId: string;
+  status: ModerationStatus;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(commentId) || !isUUID(groupId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+  if (!isModerationStatus(status)) {
+    return { ok: false, error: "Invalid status." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to manage comments." };
+
+  const { error } = await supabase.rpc("set_comment_status", {
+    _comment: commentId,
+    _status: status,
+  });
+  if (error) {
+    console.error("[setCommentStatus]", error.message);
+    if (error.code === "42501")
+      return { ok: false, error: "Only owners or moderators can suspend comments." };
+    if (error.code === "22023") return { ok: false, error: "Invalid status." };
+    if (error.code === "P0002") return { ok: false, error: "Not found or not allowed." };
+    return { ok: false, error: "Something went wrong. Try again." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  return { ok: true };
 }

@@ -17,7 +17,11 @@ import OpenGroupChatButton from "./OpenGroupChatButton";
 import RelatedGroups from "./RelatedGroups";
 import TagEditor from "./TagEditor";
 import MembersPanel from "./MembersPanel";
-import DeleteGroupButton from "./DeleteGroupButton";
+import GroupModerationCard from "./GroupModerationCard";
+import PostModerationMenu from "./PostModerationMenu";
+import CommentModerationControls from "./CommentModerationControls";
+import { canModerate as canModerateRole, canDeleteItem } from "@/lib/moderation";
+import type { GroupRole } from "@/lib/moderation";
 import type { Group, Post, Media, Comment, Profile, ReactionType, Country, GroupCategory, GroupTag } from "@/types/db";
 
 export default async function GroupDetailPage({
@@ -59,6 +63,26 @@ export default async function GroupDetailPage({
   }
 
   const isOwner = Boolean(user) && group.owner_id === user!.id;
+
+  // Viewer's group role, computed for ALL signed-in viewers (not just owners)
+  // so a plain moderator's suspend/unsuspend affordances render. The owner is
+  // "owner" without a membership lookup; everyone else gets their membership
+  // role (or null when not a member).
+  let viewerRole: GroupRole = null;
+  if (user) {
+    if (isOwner) {
+      viewerRole = "owner";
+    } else {
+      const { data: membershipRow } = await supabase
+        .from("group_members")
+        .select("role")
+        .eq("group_id", id)
+        .eq("user_id", user.id)
+        .maybeSingle<{ role: "owner" | "moderator" | "member" }>();
+      viewerRole = membershipRow?.role ?? null;
+    }
+  }
+  const canModerate = canModerateRole(viewerRole);
 
   // Members list (for the owner's role-management panel).
   let members: { user_id: string; role: string; name: string }[] = [];
@@ -343,13 +367,25 @@ export default async function GroupDetailPage({
                   };
                 const authorName =
                   authorNames.get(post.author_id) ?? "Someone";
+                const postIsAuthor = post.author_id === user?.id;
+                const canDeletePost = canDeleteItem(viewerRole, postIsAuthor);
+                const postSuspended = post.status === "suspended";
 
                 return (
                   <li
                     key={post.id}
-                    className="overflow-hidden rounded-xl border border-border bg-card p-3 sm:p-4"
+                    className={`overflow-hidden rounded-xl border border-border bg-card p-3 sm:p-4${
+                      postSuspended ? " opacity-60" : ""
+                    }`}
                   >
-                    <p className="text-xs text-text-secondary mb-1">{authorName}</p>
+                    <div className="mb-1 flex items-center gap-2">
+                      <p className="text-xs text-text-secondary">{authorName}</p>
+                      {postSuspended && (
+                        <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] text-text-secondary">
+                          Suspended
+                        </span>
+                      )}
+                    </div>
 
                     {post.body && (
                       <PostBody text={post.body} className="text-[15px] text-text-primary whitespace-pre-wrap leading-snug mb-1.5" />
@@ -375,20 +411,56 @@ export default async function GroupDetailPage({
                         disabled={false}
                       />
                       <ShareButton groupId={group.id} disabled={false} />
+                      {(canDeletePost || canModerate) && (
+                        <PostModerationMenu
+                          postId={post.id}
+                          groupId={group.id}
+                          status={post.status}
+                          canDelete={canDeletePost}
+                          canModerate={canModerate}
+                        />
+                      )}
                     </div>
 
                     {/* Comments */}
                     <div className="mt-1.5 border-t border-border pt-1.5">
                       {comments.length > 0 && (
                         <ul className="space-y-1 mb-1">
-                          {comments.map((c) => (
-                            <li key={c.id} className="text-[15px] leading-snug">
-                              <span className="text-text-secondary">
-                                {authorNames.get(c.author_id) ?? "Someone"}:
-                              </span>{" "}
-                              <span className="text-text-primary">{c.body}</span>
-                            </li>
-                          ))}
+                          {comments.map((c) => {
+                            const commentIsAuthor = c.author_id === user?.id;
+                            const canDeleteComment = canDeleteItem(
+                              viewerRole,
+                              commentIsAuthor
+                            );
+                            const commentSuspended = c.status === "suspended";
+                            return (
+                              <li
+                                key={c.id}
+                                className={`text-[15px] leading-snug${
+                                  commentSuspended ? " opacity-60" : ""
+                                }`}
+                              >
+                                <span className="text-text-secondary">
+                                  {authorNames.get(c.author_id) ?? "Someone"}:
+                                </span>{" "}
+                                <span className="text-text-primary">{c.body}</span>
+                                {commentSuspended && (
+                                  <span className="ml-1 rounded-full bg-secondary px-1.5 py-0.5 text-[11px] text-text-secondary">
+                                    Suspended
+                                  </span>
+                                )}
+                                {(canDeleteComment || canModerate) && (
+                                  <CommentModerationControls
+                                    commentId={c.id}
+                                    groupId={group.id}
+                                    status={c.status}
+                                    canDelete={canDeleteComment}
+                                    canModerate={canModerate}
+                                  />
+                                )}
+                              </li>
+                            );
+                          })}
                         </ul>
                       )}
                       {user && isMember && <CommentForm postId={post.id} />}
@@ -465,9 +537,14 @@ export default async function GroupDetailPage({
             <MembersPanel groupId={group.id} initialMembers={members} />
           )}
 
-          {/* Owner-only: delete the group (two-step confirm). */}
-          {isOwner && (
-            <DeleteGroupButton groupId={group.id} groupName={group.name} />
+          {/* Owner/moderator: suspend/unsuspend (and owner-only delete). */}
+          {canModerate && (
+            <GroupModerationCard
+              groupId={group.id}
+              status={group.status}
+              isOwner={isOwner}
+              canModerate={canModerate}
+            />
           )}
 
           {user && isMember && <OpenGroupChatButton groupId={group.id} />}
