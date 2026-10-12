@@ -355,6 +355,41 @@ begin
 end;
 $$;
 
+-- transfer_group_ownership: the current owner hands ownership to another
+-- EXISTING member. Atomic: updates groups.owner_id, promotes the target's
+-- group_members row to 'owner', and demotes the old owner's row to 'member',
+-- all in one statement sequence (single transaction). Guards: caller must be
+-- the current owner (42501); target must be a current member other than the
+-- caller (P0002 / 22023). After this the old owner is a plain member and may
+-- use leave_group.
+create or replace function public.transfer_group_ownership(_group uuid, _new_owner uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from groups g
+                 where g.id = _group and g.owner_id = auth.uid()) then
+    raise exception 'only the owner can transfer ownership' using errcode = '42501';
+  end if;
+  if _new_owner = auth.uid() then
+    raise exception 'cannot transfer to yourself' using errcode = '22023';
+  end if;
+  if not exists (select 1 from group_members gm
+                 where gm.group_id = _group and gm.user_id = _new_owner) then
+    raise exception 'new owner must be a member' using errcode = 'P0002';
+  end if;
+
+  update groups set owner_id = _new_owner where id = _group;
+  update group_members set role = 'owner'
+    where group_id = _group and user_id = _new_owner;
+  update group_members set role = 'member'
+    where group_id = _group and user_id = auth.uid();
+  return true;
+end;
+$$;
+
 create or replace function public.set_group_status(_group uuid, _status text)
 returns boolean
 language plpgsql

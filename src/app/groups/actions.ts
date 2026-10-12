@@ -968,6 +968,47 @@ export async function setGroupMemberRole({
   return { ok: true };
 }
 
+/* ── transferGroupOwnership (owner hands ownership to another member) ── */
+
+export async function transferGroupOwnership({
+  groupId,
+  newOwnerId,
+}: {
+  groupId: string;
+  newOwnerId: string;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(groupId) || !isUUID(newOwnerId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to transfer ownership." };
+
+  const { data, error } = await supabase.rpc("transfer_group_ownership", {
+    _group: groupId,
+    _new_owner: newOwnerId,
+  });
+  if (error || data !== true) {
+    console.error("[transferGroupOwnership]", error?.message ?? "no change");
+    if (error?.code === "22023") {
+      return { ok: false, error: "Pick a different member to make owner." };
+    }
+    if (error?.code === "P0002") {
+      return { ok: false, error: "That person must be a group member." };
+    }
+    return { ok: false, error: "Only the owner can transfer ownership." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  return { ok: true };
+}
+
 /* ── Moderation: delete / suspend groups, posts, comments ──
  *
  * All six wrap SECURITY DEFINER RPCs that enforce the authorization matrix
