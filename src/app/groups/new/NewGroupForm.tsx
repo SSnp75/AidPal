@@ -1,9 +1,16 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
 import { createGroup } from "@/app/groups/actions";
+import { createBrowserClient } from "@/lib/supabase/client";
 import type { ActionResult } from "@/app/auth/actions";
 import type { Country, GroupCategory } from "@/types/db";
+
+interface GroupMatch {
+  id: string;
+  name: string;
+}
 
 const inputClass =
   "w-full rounded-lg border border-border bg-secondary px-3 py-2 text-text-primary placeholder:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
@@ -23,6 +30,46 @@ export default function NewGroupForm({
   >(createGroup, null);
 
   const fieldErrors = state && !state.ok ? state.fieldErrors ?? {} : {};
+
+  // Live duplicate-name search: as the user types a name, look up existing
+  // groups so they can jump to one instead of creating a duplicate.
+  const [name, setName] = useState("");
+  const [matches, setMatches] = useState<GroupMatch[]>([]);
+
+  useEffect(() => {
+    const term = name.trim();
+    if (term.length < 2) {
+      setMatches([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const supabase = createBrowserClient();
+        // RLS limits results to groups the viewer is allowed to see.
+        const { data } = await supabase
+          .from("groups")
+          .select("id, name")
+          .ilike("name", `%${term.replace(/[%_,]/g, " ")}%`)
+          .order("name")
+          .limit(8)
+          .returns<GroupMatch[]>();
+        if (!cancelled) setMatches(data ?? []);
+      } catch {
+        if (!cancelled) setMatches([]);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [name]);
+
+  const trimmed = name.trim().toLocaleLowerCase("en");
+  const exactMatch = matches.find(
+    (m) => m.name.toLocaleLowerCase("en") === trimmed
+  );
+  const similar = matches.filter((m) => m !== exactMatch);
 
   return (
     <div className="mx-auto max-w-md">
@@ -45,6 +92,9 @@ export default function NewGroupForm({
             type="text"
             required
             maxLength={100}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoComplete="off"
             aria-describedby={fieldErrors.name ? "name-error" : undefined}
             className={inputClass}
           />
@@ -52,6 +102,42 @@ export default function NewGroupForm({
             <p id="name-error" className={errClass}>
               {fieldErrors.name}
             </p>
+          )}
+
+          {/* Exact-name match: warn and offer a link instead of a duplicate. */}
+          {exactMatch && (
+            <div className="mt-2 rounded-lg border border-border bg-secondary px-3 py-2 text-sm">
+              <p className="text-text-primary">
+                A group named “{exactMatch.name}” already exists.
+              </p>
+              <Link
+                href={`/groups/${exactMatch.id}`}
+                className="mt-0.5 inline-block font-medium text-accent underline underline-offset-2 hover:text-accent-light"
+              >
+                Go to {exactMatch.name} →
+              </Link>
+            </div>
+          )}
+
+          {/* Partial matches: similar existing groups the user may have meant. */}
+          {similar.length > 0 && (
+            <div className="mt-2">
+              <p className="mb-1 text-xs text-text-secondary">
+                Similar groups:
+              </p>
+              <ul className="flex flex-col gap-0.5">
+                {similar.map((m) => (
+                  <li key={m.id}>
+                    <Link
+                      href={`/groups/${m.id}`}
+                      className="text-sm text-accent underline underline-offset-2 hover:text-accent-light"
+                    >
+                      {m.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
 
