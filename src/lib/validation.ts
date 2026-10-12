@@ -251,6 +251,8 @@ export const GROUP_CATEGORY_SLUGS = [
   "homelessness",
   "arts-culture",
   "sports",
+  "infrastructure",
+  "travel",
   "community",
 ] as const;
 export type GroupCategorySlug = (typeof GROUP_CATEGORY_SLUGS)[number];
