@@ -336,10 +336,41 @@ export default async function GroupDetailPage({
               {group.scope}
             </span>
             {groupCountry ? (
-              <span>
-                {groupCountry.name}
-                {group.city ? ` · ${group.city}` : ""}
-              </span>
+              (() => {
+                // Build a plain text location query (City, Country). Google Maps
+                // and Earth both accept a free-text search in the URL — no API
+                // key or coordinates needed.
+                const place = [group.city, groupCountry.name]
+                  .filter(Boolean)
+                  .join(", ");
+                const q = encodeURIComponent(place);
+                return (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>
+                      {groupCountry.name}
+                      {group.city ? ` · ${group.city}` : ""}
+                    </span>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${q}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`View ${place} on Google Maps`}
+                      className="rounded-full bg-secondary px-2 py-0.5 text-text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      🗺️ Maps
+                    </a>
+                    <a
+                      href={`https://earth.google.com/web/search/${q}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`View ${place} on Google Earth`}
+                      className="rounded-full bg-secondary px-2 py-0.5 text-text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      🌍 Earth
+                    </a>
+                  </span>
+                );
+              })()
             ) : (
               group.scope === "global" && <span>🌍 Global</span>
             )}
