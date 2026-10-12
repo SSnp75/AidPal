@@ -1937,6 +1937,8 @@ insert into public.group_categories (slug, label) values
   ('homelessness','Homelessness'),
   ('arts-culture','Arts & Culture'),
   ('sports','Sports'),
+  ('infrastructure','Infrastructure'),
+  ('travel','Travel'),
   ('community','Community')
 on conflict (slug) do nothing;
 
