@@ -24,7 +24,7 @@ function GroupList({
       {groups.length === 0 ? (
         <p className="text-xs text-text-secondary/70">{emptyText}</p>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <ul className="flex max-h-72 flex-col gap-1 overflow-y-auto pr-1">
           {groups.map((g) => (
             <li key={g.id}>
               <Link
@@ -82,7 +82,7 @@ export default function RightSidebar({
         <h2 className="mb-4 text-base font-semibold text-text-primary">
           Trending Now
         </h2>
-        <ul className="flex flex-col gap-3">
+        <ul className="flex max-h-72 flex-col gap-3 overflow-y-auto pr-1">
           {trending.map((item) => (
             <li key={item.tag} className="flex items-center justify-between">
               <span className="text-sm font-medium text-accent">
@@ -101,7 +101,7 @@ export default function RightSidebar({
         <h2 className="mb-4 text-base font-semibold text-text-primary">
           Suggested For You
         </h2>
-        <ul className="flex flex-col gap-4">
+        <ul className="flex max-h-72 flex-col gap-4 overflow-y-auto pr-1">
           {suggestions.map((person) => (
             <li key={person.handle} className="flex items-center gap-3">
               <Avatar name={person.name} sizeClass="h-10 w-10 text-xs" />
