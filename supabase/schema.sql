@@ -1920,6 +1920,11 @@ alter table public.groups add column if not exists city          text check (cit
 alter table public.groups add column if not exists category_slug text references public.group_categories(slug);
 alter table public.groups add column if not exists scope         text not null default 'local'
   check (scope in ('local','national','global','group'));
+-- Optional precise location: a free-text query passed straight to Google Maps/
+-- Earth search URLs. Accepts a Plus Code (e.g. 'FW72+C6 Lumle, Nepal'), a
+-- 'lat,lng' pair, or a place/address string. No parsing or geocoding.
+alter table public.groups add column if not exists location_query text
+  check (location_query is null or char_length(location_query) <= 200);
 
 create index if not exists groups_country_code_idx on public.groups (country_code);
 create index if not exists groups_category_slug_idx on public.groups (category_slug);
@@ -1961,7 +1966,8 @@ create or replace function public.create_group(
   _city text default null,
   _category_slug text default null,
   _scope text default 'local',
-  _tags text[] default '{}'
+  _tags text[] default '{}',
+  _location_query text default null
 )
 returns uuid
 language plpgsql
@@ -1973,9 +1979,10 @@ declare
   t text;
 begin
   insert into groups (name, description, is_private, owner_id,
-                      country_code, city, category_slug, scope)
+                      country_code, city, category_slug, scope, location_query)
   values (_name, _description, _is_private, auth.uid(),
-          _country_code, _city, _category_slug, coalesce(_scope, 'local'))
+          _country_code, _city, _category_slug, coalesce(_scope, 'local'),
+          _location_query)
   returning id into new_id;
 
   insert into group_members (group_id, user_id, role)

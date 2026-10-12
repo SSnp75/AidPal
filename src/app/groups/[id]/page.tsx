@@ -337,12 +337,13 @@ export default async function GroupDetailPage({
             </span>
             {groupCountry ? (
               (() => {
-                // Build a plain text location query (City, Country). Google Maps
-                // and Earth both accept a free-text search in the URL — no API
-                // key or coordinates needed.
-                const place = [group.city, groupCountry.name]
-                  .filter(Boolean)
-                  .join(", ");
+                // Prefer the group's precise location (Plus Code / lat,lng /
+                // address) when set; otherwise fall back to "City, Country".
+                // Google Maps and Earth both accept a free-text search in the
+                // URL — no API key or coordinates parsing needed.
+                const place =
+                  group.location_query ||
+                  [group.city, groupCountry.name].filter(Boolean).join(", ");
                 const q = encodeURIComponent(place);
                 return (
                   <span className="inline-flex items-center gap-1.5">

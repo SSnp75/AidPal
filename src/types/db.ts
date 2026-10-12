@@ -27,6 +27,7 @@ export interface Group {
   scope: GroupScope;
   relations_open: boolean;
   status: ModerationStatus;
+  location_query: string | null;
 }
 
 export interface Country {

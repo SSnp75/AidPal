@@ -233,6 +233,28 @@ export default function NewGroupForm({
         </div>
 
         <div>
+          <label htmlFor="locationQuery" className={labelClass}>
+            Precise location (optional)
+          </label>
+          <input
+            id="locationQuery"
+            name="locationQuery"
+            type="text"
+            maxLength={200}
+            placeholder="FW72+C6 Lumle, Nepal  or  27.7172, 85.3240"
+            aria-describedby="location-help"
+            className={inputClass}
+          />
+          <p id="location-help" className="mt-1 text-xs text-text-secondary">
+            Paste a Google Plus Code, coordinates, or an address. Used to pin the
+            exact spot on Google Maps and Earth.
+          </p>
+          {fieldErrors.locationQuery && (
+            <p className={errClass}>{fieldErrors.locationQuery}</p>
+          )}
+        </div>
+
+        <div>
           <label htmlFor="scope" className={labelClass}>
             Scope
           </label>

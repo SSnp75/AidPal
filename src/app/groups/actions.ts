@@ -81,6 +81,7 @@ export async function createGroup(
   const rawCategory = formData.get("category");
   const rawScope = formData.get("scope");
   const rawTags = formData.get("tags");
+  const rawLocation = formData.get("locationQuery");
 
   const fieldErrors: Record<string, string> = {};
   const nameRes = validateGroupName(rawName);
@@ -116,6 +117,18 @@ export async function createGroup(
 
   const scope = isGroupScope(rawScope) ? rawScope : "local";
 
+  // Optional precise-location string (Plus Code / lat,lng / address). Trim and
+  // cap at 200 to match the DB check; too-long is a field error.
+  let locationQuery: string | null = null;
+  if (typeof rawLocation === "string" && rawLocation.trim()) {
+    const trimmed = rawLocation.trim();
+    if (trimmed.length > 200) {
+      fieldErrors.locationQuery = "Keep the location under 200 characters.";
+    } else {
+      locationQuery = trimmed;
+    }
+  }
+
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, error: "Please fix the errors below.", fieldErrors };
   }
@@ -129,6 +142,7 @@ export async function createGroup(
     _category_slug: rawCategory as string,
     _scope: scope,
     _tags: tagsRes.ok ? tagsRes.value : [],
+    _location_query: locationQuery,
   });
 
   if (error) {
