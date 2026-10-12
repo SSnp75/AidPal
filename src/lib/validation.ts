@@ -294,7 +294,6 @@ export function normalizeTags(raw: unknown): string[] {
 }
 
 /**
-/**
  * Extract auto-tags from a post body. A sigil (`@ # $ % &`) opens a tagging
  * region: every word from a sigil up to the next sigil (or end of body) becomes
  * a tag. Text before the first sigil is ignored. Each word is split on
