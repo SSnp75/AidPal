@@ -21,6 +21,7 @@ import TagEditor from "./TagEditor";
 import MembersPanel from "./MembersPanel";
 import GroupModerationCard from "./GroupModerationCard";
 import PostModerationMenu from "./PostModerationMenu";
+import PostEditor from "./PostEditor";
 import CommentModerationControls from "./CommentModerationControls";
 import { canModerate as canModerateRole, canDeleteItem } from "@/lib/moderation";
 import type { GroupRole } from "@/lib/moderation";
@@ -459,12 +460,13 @@ export default async function GroupDetailPage({
                     </div>
 
                     {post.body && (
-                      <PostBody text={post.body} className="text-[15px] text-text-primary whitespace-pre-wrap leading-snug mb-1.5" />
-                    )}
-                    {post.edited_at && (
-                      <span className="mb-1.5 block text-[11px] italic text-text-secondary">
-                        (edited)
-                      </span>
+                      <PostEditor
+                        postId={post.id}
+                        groupId={group.id}
+                        body={post.body}
+                        edited={Boolean(post.edited_at)}
+                        canModerate={canModerate}
+                      />
                     )}
 
                     {media && (
@@ -498,7 +500,6 @@ export default async function GroupDetailPage({
                           status={post.status}
                           canDelete={canDeletePost}
                           canModerate={canModerate}
-                          initialBody={post.body ?? ""}
                         />
                       )}
                     </div>
