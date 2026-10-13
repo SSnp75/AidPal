@@ -1183,6 +1183,52 @@ export async function setPostStatus({
   return { ok: true };
 }
 
+/* ── editPost (owner/moderator edit of post body) ── */
+
+export async function editPost({
+  postId,
+  groupId,
+  body,
+}: {
+  postId: string;
+  groupId: string;
+  body: string;
+}): Promise<ActionResult> {
+  if (!isSupabaseConfigured()) {
+    return { ok: false, error: "Supabase is not configured. See README.md." };
+  }
+  if (!isUUID(postId) || !isUUID(groupId)) {
+    return { ok: false, error: "Not found or not allowed." };
+  }
+
+  const trimmed = (body ?? "").trim();
+  if (!trimmed) return { ok: false, error: "Post text can't be empty." };
+  const bodyRes = validatePostBody(trimmed);
+  if (!bodyRes.ok) return { ok: false, error: bodyRes.error };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "Sign in to edit posts." };
+
+  const { error } = await supabase.rpc("edit_post", {
+    _post: postId,
+    _body: trimmed,
+  });
+  if (error) {
+    console.error("[editPost]", error.message);
+    if (error.code === "42501")
+      return { ok: false, error: "Only owners or moderators can edit posts." };
+    if (error.code === "22023") return { ok: false, error: "Enter valid post text." };
+    if (error.code === "P0002") return { ok: false, error: "Not found or not allowed." };
+    return { ok: false, error: "Something went wrong. Try again." };
+  }
+
+  revalidatePath(`/groups/${groupId}`);
+  return { ok: true };
+}
+
 export async function deleteComment({
   commentId,
   groupId,

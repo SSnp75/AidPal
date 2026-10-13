@@ -2369,3 +2369,45 @@ begin
   return true;
 end;
 $$;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- Incremental migration: edit_post RPC (owner/moderator edit of post body).
+-- Idempotent: `add column if not exists` + `create or replace function`.
+-- edited_at records the last edit time (null = never edited → "(edited)" hidden).
+alter table public.posts add column if not exists edited_at timestamptz;
+
+-- edit_post: owner or moderator of the post's group may replace the body.
+-- (The post author is NOT granted edit here — matches the requested matrix.)
+-- Body validated 0..2000 chars; empty/whitespace becomes null only if there is
+-- media, but this RPC does not know about media, so it requires non-empty text.
+create or replace function public.edit_post(_post uuid, _body text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_group uuid;
+  v_body  text;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated' using errcode = '42501';
+  end if;
+  select p.group_id into v_group from posts p where p.id = _post;
+  if v_group is null then
+    raise exception 'post not found' using errcode = 'P0002';
+  end if;
+  if not public.can_moderate_group(v_group) then
+    raise exception 'not a group moderator' using errcode = '42501';
+  end if;
+  v_body := nullif(btrim(coalesce(_body, '')), '');
+  if v_body is null then
+    raise exception 'empty body' using errcode = '22023';
+  end if;
+  if char_length(v_body) > 2000 then
+    raise exception 'body too long' using errcode = '22023';
+  end if;
+  update posts set body = v_body, edited_at = now() where id = _post;
+  return true;
+end;
+$$;

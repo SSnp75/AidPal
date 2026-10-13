@@ -67,6 +67,7 @@ export interface Post {
   body: string | null;
   created_at: string;
   status: ModerationStatus;
+  edited_at: string | null;
 }
 
 export interface Media {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { setPostStatus, deletePost } from "@/app/groups/actions";
+import { setPostStatus, deletePost, editPost } from "@/app/groups/actions";
 import type { ModerationStatus } from "@/types/db";
 
 export default function PostModerationMenu({
@@ -10,20 +10,39 @@ export default function PostModerationMenu({
   status,
   canDelete,
   canModerate,
+  initialBody,
 }: {
   postId: string;
   groupId: string;
   status: ModerationStatus;
   canDelete: boolean;
   canModerate: boolean;
+  /** Current post text, used to seed the inline edit box (owner/moderator). */
+  initialBody?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(initialBody ?? "");
   const [current, setCurrent] = useState<ModerationStatus>(status);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   if (!canDelete && !canModerate) return null;
+
+  function saveEdit() {
+    setError(null);
+    startTransition(async () => {
+      const r = await editPost({ postId, groupId, body: draft });
+      if (r.ok) {
+        setEditing(false);
+        setOpen(false);
+        // Server revalidatePath re-renders the post with the new body.
+      } else {
+        setError(r.error);
+      }
+    });
+  }
 
   function toggleStatus() {
     setError(null);
@@ -65,8 +84,61 @@ export default function PostModerationMenu({
       >
         ⋯
       </button>
-      {open && (
+      {open && editing && (
+        <div className="absolute right-0 z-10 mt-1 w-72 rounded-xl border border-side-border bg-side-card p-2 shadow-lg">
+          <label className="mb-1 block text-xs text-text-secondary">
+            Edit post
+          </label>
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            maxLength={2000}
+            rows={4}
+            className="w-full rounded-lg border border-border bg-card px-2 py-1.5 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          />
+          <div className="mt-1 flex gap-2">
+            <button
+              type="button"
+              onClick={saveEdit}
+              disabled={isPending || !draft.trim()}
+              className="flex-1 rounded-lg bg-accent px-2 py-1.5 text-sm font-medium text-white hover:bg-accent-light disabled:opacity-50"
+            >
+              {isPending ? "Saving…" : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(false);
+                setDraft(initialBody ?? "");
+                setError(null);
+              }}
+              disabled={isPending}
+              className="flex-1 rounded-lg px-2 py-1.5 text-sm text-text-secondary hover:bg-secondary disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+          {error && (
+            <p className="mt-1 px-1 text-xs text-reaction-love">{error}</p>
+          )}
+        </div>
+      )}
+      {open && !editing && (
         <div className="absolute right-0 z-10 mt-1 w-52 rounded-xl border border-side-border bg-side-card p-2 shadow-lg">
+          {canModerate && (
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(initialBody ?? "");
+                setEditing(true);
+                setError(null);
+              }}
+              disabled={isPending}
+              className="block w-full rounded-lg px-2 py-1.5 text-left text-sm text-text-primary hover:bg-secondary disabled:opacity-50"
+            >
+              Edit post
+            </button>
+          )}
           {canModerate && (
             <button
               type="button"

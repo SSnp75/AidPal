@@ -461,6 +461,11 @@ export default async function GroupDetailPage({
                     {post.body && (
                       <PostBody text={post.body} className="text-[15px] text-text-primary whitespace-pre-wrap leading-snug mb-1.5" />
                     )}
+                    {post.edited_at && (
+                      <span className="mb-1.5 block text-[11px] italic text-text-secondary">
+                        (edited)
+                      </span>
+                    )}
 
                     {media && (
                       <img
@@ -493,6 +498,7 @@ export default async function GroupDetailPage({
                           status={post.status}
                           canDelete={canDeletePost}
                           canModerate={canModerate}
+                          initialBody={post.body ?? ""}
                         />
                       )}
                     </div>
