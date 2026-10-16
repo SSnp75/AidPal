@@ -212,7 +212,7 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-full w-full">
-      <div className="grid w-full grid-cols-1 gap-6 py-8 min-[992px]:grid-cols-[15%_minmax(0,70%)_15%]">
+      <div className="grid w-full grid-cols-1 gap-6 px-4 py-8 min-[992px]:px-0 min-[992px]:grid-cols-[15%_minmax(0,70%)_15%]">
         <LeftSidebar
           displayName={displayName}
           handle={handle}

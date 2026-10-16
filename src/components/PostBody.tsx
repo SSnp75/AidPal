@@ -14,7 +14,7 @@ export default function PostBody({
   className?: string;
 }) {
   return (
-    <p className={className}>
+    <p className={`break-words [overflow-wrap:anywhere] ${className ?? ""}`}>
       {linkify(text).map((seg, i) =>
         seg.type === "link" ? (
           <a

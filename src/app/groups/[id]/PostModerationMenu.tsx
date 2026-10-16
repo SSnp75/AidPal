@@ -61,12 +61,12 @@ export default function PostModerationMenu({
         onClick={() => setOpen((o) => !o)}
         aria-label="Post moderation menu"
         aria-expanded={open}
-        className="rounded-full px-2 py-1 text-text-secondary hover:bg-secondary hover:text-text-primary"
+        className="rounded-full px-2 py-1 min-h-9 min-w-9 inline-flex items-center justify-center min-[992px]:min-h-0 min-[992px]:min-w-0 text-text-secondary hover:bg-secondary hover:text-text-primary"
       >
         ⋯
       </button>
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-52 rounded-xl border border-side-border bg-side-card p-2 shadow-lg">
+        <div className="absolute right-0 z-10 mt-1 w-52 max-w-[calc(100vw-2rem)] rounded-xl border border-side-border bg-side-card p-2 shadow-lg">
           {canModerate && (
             <button
               type="button"

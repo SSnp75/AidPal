@@ -8,7 +8,7 @@ import RocketJoinButton from "@/components/RocketJoinButton";
 import type { SamplePost } from "@/lib/sampleFeed";
 
 const engagementBtn =
-  "flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] leading-none text-text-secondary transition-colors disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "flex items-center gap-0.5 rounded px-2 py-1.5 min-h-9 min-w-9 justify-center min-[992px]:px-1 min-[992px]:py-0.5 min-[992px]:min-h-0 min-[992px]:min-w-0 min-[992px]:justify-start text-[10px] leading-none text-text-secondary transition-colors disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
 export default function PostCard({ post }: { post: SamplePost }) {
   return (
@@ -30,7 +30,7 @@ export default function PostCard({ post }: { post: SamplePost }) {
           type="button"
           disabled
           aria-label="Post options"
-          className="shrink-0 rounded-lg p-0.5 text-text-secondary/50 transition-colors disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="shrink-0 rounded-lg p-2 min-[992px]:p-0.5 text-text-secondary/50 transition-colors disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <span aria-hidden="true">⋯</span>
         </button>
@@ -68,7 +68,7 @@ export default function PostCard({ post }: { post: SamplePost }) {
       )}
 
       {/* Engagement row */}
-      <div className="mt-1 flex items-center gap-0.5 border-t border-border pt-0.5">
+      <div className="mt-1 flex flex-wrap items-center gap-0.5 border-t border-border pt-0.5">
         <ReactionBar
           postId={post.id}
           initialCounts={post.reactions}

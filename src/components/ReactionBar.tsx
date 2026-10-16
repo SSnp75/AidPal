@@ -27,7 +27,7 @@ const activeToken: Record<ReactionType, string> = {
 };
 
 const btnBase =
-  "inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] leading-none transition-colors disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "inline-flex items-center gap-0.5 rounded px-2 py-1.5 min-h-9 min-w-9 justify-center min-[992px]:px-1 min-[992px]:py-0.5 min-[992px]:min-h-0 min-[992px]:min-w-0 min-[992px]:justify-start text-[10px] leading-none transition-colors disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
 function labelFor(type: ReactionType, counts: Counts): string {
   const n = counts[type];

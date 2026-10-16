@@ -350,7 +350,7 @@ export default async function GroupDetailPage({
                 const q = encodeURIComponent(place);
                 return (
                   <span className="inline-flex flex-wrap items-center gap-1.5">
-                    <span>
+                    <span className="break-words [overflow-wrap:anywhere]">
                       {groupCountry.name}
                       {group.city ? ` · ${group.city}` : ""}
                     </span>
@@ -363,7 +363,7 @@ export default async function GroupDetailPage({
                         target="_blank"
                         rel="noopener noreferrer"
                         title={`View ${place} on Google Maps`}
-                        className="text-accent underline underline-offset-2 hover:text-accent-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                        className="break-words [overflow-wrap:anywhere] max-w-full text-accent underline underline-offset-2 hover:text-accent-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                       >
                         📍 {group.location_query}
                       </a>
@@ -520,7 +520,7 @@ export default async function GroupDetailPage({
                             return (
                               <li
                                 key={c.id}
-                                className={`text-[15px] leading-snug${
+                                className={`text-[15px] leading-snug break-words [overflow-wrap:anywhere]${
                                   commentSuspended ? " opacity-60" : ""
                                 }`}
                               >

@@ -90,7 +90,7 @@ export default function PostEditor({
               setDraft(body);
               setEditing(true);
             }}
-            className="underline underline-offset-2 hover:text-text-primary"
+            className="inline-flex items-center min-h-9 px-1 -mx-1 min-[992px]:min-h-0 min-[992px]:px-0 min-[992px]:mx-0 rounded underline underline-offset-2 hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             ✎ Edit
           </button>

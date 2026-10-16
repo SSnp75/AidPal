@@ -10,7 +10,7 @@ interface Props {
 }
 
 const btnBase =
-  "inline-flex items-center justify-center rounded px-1 py-0.5 text-[14px] leading-none text-text-secondary transition-colors hover:text-text-primary disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+  "inline-flex items-center justify-center rounded px-2 py-1.5 min-h-9 min-w-9 min-[992px]:px-1 min-[992px]:py-0.5 min-[992px]:min-h-0 min-[992px]:min-w-0 text-[14px] leading-none text-text-secondary transition-colors hover:text-text-primary disabled:cursor-default disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
 
 export default function ShareButton({ groupId, disabled = false }: Props) {
   const [copied, setCopied] = useState(false);
