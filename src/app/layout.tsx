@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavBar from "@/components/NavBar";
+import MobileTabBar from "@/components/MobileTabBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,6 +20,14 @@ export const metadata: Metadata = {
     "A social network that turns community goodwill into organized action.",
 };
 
+// viewportFit: "cover" emits viewport-fit=cover so env(safe-area-inset-*)
+// resolves on notched devices; progressive enhancement everywhere else.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -31,9 +40,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <NavBar />
-        <main className="w-full flex-1">
+        {/* pb-20 on mobile reserves space for the fixed bottom tab bar so the
+            last item is never covered; no padding at >=992px (bar hidden). */}
+        <main className="w-full flex-1 pb-20 min-[992px]:pb-0">
           {children}
         </main>
+        <MobileTabBar />
       </body>
     </html>
   );

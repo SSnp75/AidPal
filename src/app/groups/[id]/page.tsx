@@ -295,10 +295,12 @@ export default async function GroupDetailPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8">
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 pb-20 min-[992px]:pb-8">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[16rem_1fr_20rem]">
-        {/* Left sidebar — Related groups + the viewer's events. */}
-        <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start lg:order-first">
+        {/* Left sidebar — Related groups + the viewer's events. On mobile it
+            stacks AFTER <main> (order-2); min-[992px]:order-none restores the
+            desktop grid placement. */}
+        <aside className="order-2 space-y-4 min-[992px]:order-none lg:sticky lg:top-8 lg:self-start">
           {/* Related groups — link this group to other existing groups. */}
           <RelatedGroups
             groupId={group.id}
@@ -314,7 +316,7 @@ export default async function GroupDetailPage({
           {user && <MyEventsPanel />}
         </aside>
 
-        <main className="min-w-0 space-y-6">
+        <main className="order-first min-w-0 space-y-6 min-[992px]:order-none">
         <header className="rounded-2xl border border-border bg-card p-5 sm:p-6">
           <h1 className="text-2xl sm:text-3xl font-bold text-text-primary">{group.name}</h1>
           {group.is_private && (
@@ -573,7 +575,7 @@ export default async function GroupDetailPage({
         )}
         </main>
 
-        <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
+        <aside className="order-last space-y-4 min-[992px]:order-none lg:sticky lg:top-8 lg:self-start">
           {/* AI thinks — placeholder for upcoming AI insights on this issue. */}
           <section className="min-h-[25vh] rounded-2xl border border-side-border bg-side-card p-4">
             <h2 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-text-secondary">
